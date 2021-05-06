@@ -1,7 +1,0 @@
-build-job:
-  stage: build
-  script:
-    - mkdir build 
-    - cd build
-    - "C:/Program Files (x86)/CMake/bin/cmake.exe" ..
-    - "C:/Program Files (x86)/CMake/bin/cmake.exe" --build .
