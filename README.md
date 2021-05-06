@@ -1,4 +1,4 @@
-# hookftw - Hook for the Win (OS)
+# hookftw - hooking for the win(dows)
 A windows hooking library
 
 # How to install
