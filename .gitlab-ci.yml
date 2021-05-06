@@ -1,0 +1,7 @@
+build-job:
+  stage: build
+  script:
+    - mkdir build && cd build
+    - cmake ..
+    - cmake --build .
+    - ctest .
