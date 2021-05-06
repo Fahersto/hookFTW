@@ -20,7 +20,7 @@ hookftw::FuncStartHook funcStartHook(
 	}
 );
 
- //hook at arbitrary address within the function
+//hook at arbitrary address within the function
 hookftw::Hook hook(
 	squareThenSum + 0x5,
 	[](hookftw::registers* registers) {
