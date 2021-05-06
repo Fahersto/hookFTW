@@ -3,6 +3,5 @@ build-job:
   script:
     - mkdir build 
     - cd build
-    - cmake ..
-    - cmake --build .
-    - ctest .
+    - "C:/Program Files (x86)/CMake/bin/cmake.exe" ..
+    - "C:/Program Files (x86)/CMake/bin/cmake.exe" --build .
