@@ -1,8 +1,11 @@
 # hookftw - hooking for the win(dows)
-A windows hooking library
+A hooking library for 64Bit Windows.
 
 # How to install
-Clone including submodules (zydis)
+Clone including submodules (zydis).
+
+# Documentation
+https://hookftw.schwubbeli.de/annotated.html
 
 # Usage example
 ```C++
