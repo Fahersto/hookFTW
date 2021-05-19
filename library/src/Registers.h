@@ -5,10 +5,39 @@
 
 namespace hookftw
 {
+#ifdef _WIN32
+	/**
+	 * \brief Registers used in 32 Bit of the x86 instruction set
+	 *
+	 * The registers can be directly read from and written to inside the hook callback function.
+	 * TODO fpu registers? (st0 - st7)
+	 */
+	struct registers
+	{
+		int32_t esp;
+		int32_t eax;
+		int32_t ecx;
+		int32_t edx;
+		int32_t ebx;
+		int32_t ebp;
+		int32_t esi;
+		int32_t edi;
+
+		__m128 xmm0;
+		__m128 xmm1;
+		__m128 xmm2;
+		__m128 xmm3;
+		__m128 xmm4;
+		__m128 xmm5;
+		__m128 xmm6;
+		__m128 xmm7;
+	};
+#elif _WIN64
 	/**
 	 * \brief Registers used in 64 Bit of the x86 instruction set
 	 *
 	 * The registers can be directly read from and written to inside the hook callback function.
+	 * TODO fpu registers? (st0 - st7). They seem unused in 64bit though.
 	 */
 	struct registers
 	{
@@ -45,6 +74,6 @@ namespace hookftw
 		__m128 xmm13;
 		__m128 xmm14;
 		__m128 xmm15;
-
 	};
+#endif
 }

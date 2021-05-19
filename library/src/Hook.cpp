@@ -149,8 +149,6 @@ namespace hookftw
 		originalBytes = new int8_t[hookLength];
 		memcpy(originalBytes, sourceAddress, hookLength);
 
-		
-
 		//copy stub to trampoline
 		memcpy(trampoline, stub, stubLength);
 
@@ -202,8 +200,159 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
 
+#if _WIN32
 	/**
-	 * Hooks a function at the given address. 
+	* Hooks a function at the given address.
+	*
+	* \note This function is not threadsafe. If the function that is being hooked is running the instructions that are replaced for hooking the behavior is undefined and the application is likely to crash.
+	* \warning Places that can't be hooked currently:
+	*	- Locations where the original binary jumps to
+	*	- Locations where instruction would have to be rellocated
+	* @param sourceAddress Address to apply the hook to
+	* @param proxy Function callback to be executed when hook is called
+	*/
+	Hook::Hook(int8_t* sourceAddress, void proxy(registers* regs))
+		: originalBytes(nullptr), sourceAddress(nullptr), trampoline(nullptr), hookLength(0)
+	{
+		const int stubLength = 151;
+		const int stubJumpBackLength = 5;
+		const int indexOfAddressOfCall = 74;
+		const int jmpInstructionLength = 5;
+
+
+		ZydisDecoder decoder;
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LEGACY_32, ZYDIS_ADDRESS_WIDTH_32);
+		ZyanUSize offset = 0;
+
+		ZydisDecodedInstruction currentInstruction;
+
+		while (offset < jmpInstructionLength)
+		{
+			if (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&decoder, sourceAddress + offset, 15, &currentInstruction)))
+			{
+				offset += currentInstruction.length;
+			}
+			else
+			{
+				printf("ERROR: Couldn't disassemble address %llx\n", sourceAddress + offset);
+				return;
+			}
+		}
+
+		hookLength = offset;
+
+		//5 bytes are required to place JMP 0x11223344
+		assert(hookLength >= stubJumpBackLength);
+
+		//1. save all registers
+		//2. call proxy function
+		//3. restore all registers
+		//4. jump back to orignal function
+		BYTE stub[stubLength] = {
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x3c, 0x24,	//movdqu XMMWORD PTR [esp],xmm7
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x34, 0x24,	//movdqu XMMWORD PTR [esp],xmm6
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x2c, 0x24,	//movdqu XMMWORD PTR [esp],xmm5
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x24, 0x24,	//movdqu XMMWORD PTR [esp],xmm4
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x1c, 0x24,	//movdqu XMMWORD PTR [esp],xmm3
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x14, 0x24,	//movdqu XMMWORD PTR [esp],xmm2
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x0c, 0x24,	//movdqu XMMWORD PTR [esp],xmm1
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x04, 0x24,	//movdqu XMMWORD PTR [esp],xmm0
+			0x57,							//push   edi
+			0x56,							//push   esi
+			0x55,							//push   ebp
+			0x53,							//push   ebx
+			0x52,							//push   edx
+			0x51,							//push   ecx
+			0x50,							//push   eax
+			0x54,							//push	 esp		//save esp so we can overwrite register values
+			0x89, 0xE1,						//mov    ecx,esp
+			0xE8, 0x44, 0x33, 0x22, 0x11,	//call   11223344
+			0x5C,							//pop	 esp
+			0x58,							//pop    eax
+			0x59,							//pop    ecx
+			0x5A,							//pop    edx			
+			0x5B,							//pop    ebx
+			0x5D,							//pop    ebp
+			0x5E,							//pop    esi
+			0x5F,							//pop    edi
+			0xf3, 0x0f, 0x6f, 0x04, 0x24,	//movdqu xmm0,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x0c, 0x24,	//movdqu xmm1,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x14, 0x24,	//movdqu xmm2,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x1c, 0x24,	//movdqu xmm3,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x24, 0x24,	//movdqu xmm4,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x2c, 0x24,	//movdqu xmm5,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x34, 0x24,	//movdqu xmm6,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x3c, 0x24,	//movdqu xmm7,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10				//add    esp,0x10
+		};
+
+		BYTE stubJumpBack[stubJumpBackLength] = { 0xE9, 0x84, 0x77, 0x66, 0x55 };	//jmp 1122335a (back to original code)
+
+		//remember for unhooking
+		this->hookLength = hookLength;
+		this->sourceAddress = sourceAddress;
+
+		//save original bytes
+		originalBytes = new int8_t[hookLength];
+		memcpy(originalBytes, sourceAddress, hookLength);
+		
+		//allocate space for stub + space for overwritten bytes + jumpback
+		//in 32bit we expect to always be able to jump to the trampoline and back to the original code with a JMP rel32. Is this assumnption correct?
+		trampoline = (int8_t*)VirtualAlloc(NULL, stubLength + hookLength + stubJumpBackLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		
+		//copy stub to trampoline
+		memcpy(trampoline, stub, stubLength);
+
+		//copy original bytes to trampoline
+		memcpy(&trampoline[stubLength], originalBytes, hookLength);
+
+		//copy jump back to original code
+		memcpy(&trampoline[stubLength + hookLength], stubJumpBack, hookLength);
+
+		//insert address of proxy function to call instruction
+		*(int32_t*)&trampoline[indexOfAddressOfCall + 1] = (int32_t)proxy - (int32_t)&trampoline[indexOfAddressOfCall] - jmpInstructionLength;
+
+		//write jump from trampoline to original code
+		*(int32_t*)&trampoline[stubLength + hookLength + 1] = (int32_t)&sourceAddress[hookLength] - (int32_t)&trampoline[stubLength + hookLength] - jmpInstructionLength;
+
+		//make trampoline executable
+		DWORD pageProtection;
+		VirtualProtect(trampoline, stubLength + hookLength + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+
+		//make page of original code writeable
+		VirtualProtect(sourceAddress, hookLength, PAGE_READWRITE, &pageProtection);
+
+		//write jump from original code to trampoline
+		sourceAddress[0] = 0xE9; //JMP
+		*(int32_t*)&sourceAddress[1] = (int32_t)(trampoline - sourceAddress) - jmpInstructionLength;
+
+		//NOP left over bytes
+		for (int i = stubJumpBackLength; i < hookLength; i++)
+		{
+			sourceAddress[i] = 0x90;
+		}
+
+		//restore page protection of original code
+		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
+	}
+#elif _WIN64
+	/**
+	 * Hooks a function at the given address.
 	 *
 	 * \note This function is not threadsafe. If the function that is being hooked is running the instructions that are replaced for hooking the behavior is undefined and the application is likely to crash.
 	 * \warning Places that can't be hooked currently:
@@ -216,7 +365,7 @@ namespace hookftw
 		: originalBytes(nullptr), sourceAddress(nullptr), trampoline(nullptr), hookLength(0)
 	{
 		int requiredBytes = 5;
-		
+
 		//allocate the trampoline. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo(&systemInfo);
@@ -237,7 +386,7 @@ namespace hookftw
 				requiredBytes = 14;
 			}
 		}
-		
+
 		//1. rellocated instructions until we reached the requiredBytes (5 or 14 Bytes)
 		// Initialize decoder context
 		ZydisDecoder decoder;
@@ -274,8 +423,7 @@ namespace hookftw
 		//4. Apply hook
 		GenerateTrampolineAndApplyHook(sourceAddress, offset, rellocatedBytes, proxy);
 	}
-
-
+#endif
 	/**
 	 * Restores the original function by copying back the original bytes of the hooked function that where overwritten by placing the hook.
 	 *
@@ -298,6 +446,7 @@ namespace hookftw
 
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo(&systemInfo);
+		
 		//memory leak but enables unhooking inside hooked function and makes it threadsafe?
 		VirtualFree(trampoline, systemInfo.dwPageSize, MEM_RELEASE);
 	}
