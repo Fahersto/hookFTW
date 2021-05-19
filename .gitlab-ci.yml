@@ -1,0 +1,9 @@
+build-job:
+  stage: build
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+    - mkdir build 
+    - cd build
+    - cmake ..
+    - cmake --build .
