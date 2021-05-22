@@ -20,7 +20,7 @@ namespace hookftw
 		va_start(arguments, format);
 		if (Logger::enableFileLogging_)
 		{
- 			fopen_s(&logfile_, "C:/logs/hookftw.log", "a");
+ 			fopen_s(&logfile_, "hookftw.log", "a");
 			fprintf(logfile_, format, arguments);
 			fclose(logfile_);
 		}
@@ -40,7 +40,7 @@ namespace hookftw
 		if (enableFileLogging)
 		{
 			//clear file
-			fopen_s(&logfile_, "C:/logs/hookftw.log", "w");
+			fopen_s(&logfile_, "hookftw.log", "w");
 			fclose(logfile_);
 		}
 		AllocConsole();
