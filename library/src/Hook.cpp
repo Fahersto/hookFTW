@@ -76,7 +76,9 @@ namespace hookftw
 			0x51,														//push   rcx
 			0x50,														//push   rax
 			0x54,														//push	 rsp
-			0x48, 0x89, 0xE1,											//mov    rcx,rsp
+			
+			0x48, 0x89, 0xE1,											//mov    rcx,rsp					(first arg = registers on stack (fastcall))
+			
 			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov rax, addressOfLocal  //save rsp
 			0x48, 0x89, 0x20,											//mov [rax], rsp
 			0x48, 0x0F, 0xBA, 0xF4, 0x03,								//btr	 rsp, 3						(align stack to 16 bytes before call)
@@ -85,6 +87,7 @@ namespace hookftw
 			0xFF, 0xD0,													//call   rax						(call proxy function)
 			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov rax, addressOforiginalRspLocalVariable. We restore rsp like this because we don't know if stack was aligned to 16 byte beforehand
 			0x48, 0x8B, 0x20,											//mov rsp, [rax]
+			
 			0x5c,														//pop	 rsp
 			0x58,														//pop    rax
 			0x59,														//pop    rcx

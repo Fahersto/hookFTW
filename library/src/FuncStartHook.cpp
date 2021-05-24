@@ -10,19 +10,19 @@ namespace hookftw
 	void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, int8_t* rellocatedBytes,
 		int rellocatedBytesLength, void proxy(context* ctx))
 	{
-		const int stubLength = 422;
-		const int stubJumpBackLength = 14;
-		const int proxyFunctionAddressIndex = 218;
+		const int stubLength = 432;
+		const int stubJumpBackLength = 23;
+		const int proxyFunctionAddressIndex = 228;
 
-		const int thisAddress = 180;
-		const int saveRspAddress = 196;
-		const int restoreRspAddress = 230;
+		const int saveRaxAddress = 180;
+		const int thisAddress = 190;
+		const int saveRspAddress = 206;
+		const int restoreRspAddress = 240;
 
 		//14 bytes are required to place JMP[rip+0x] 0x1122334455667788
-		assert(hookLength >= stubJumpBackLength);
+		assert(hookLength >= 14);
 
-		int64_t originalRsp = 0;
-
+		
 		//1. save xmm registers
 		//2. save general purpose registers
 		//3. align the stack to 16 bytes
@@ -80,12 +80,15 @@ namespace hookftw
 			0x50,														//push   rax
 			0x54,														//push	 rsp
 			0x54,														//push	 rsp
-			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov rax, this 
-			0x50,														//push rax
+
+			0x48, 0xA3, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs ds:0x1122334455667788,rax
+			
+			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
+			0x50,														//push	 rax
 			//0x48, 0x89, 0xE1,											//mov    rcx,rsp					//make first argument point at a
-			0x48, 0x8D, 0x4C, 0x24, 0x0 ,								// lea    rcx,[rsp - 0x8] make first argument point at a
-			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov rax, addressOfLocal			//save rsp
-			0x48, 0x89, 0x20,											//mov [rax], rsp
+			0x48, 0x8D, 0x4C, 0x24, 0x0 ,								//lea    rcx,[rsp - 0x8] make first argument point at a
+			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov	 rax, addressOfLocal			//save rsp
+			0x48, 0x89, 0x20,											//mov	 [rax], rsp
 			0x48, 0x0F, 0xBA, 0xF4, 0x03,								//btr	 rsp, 3						(align stack to 16 bytes before call)
 			0x48, 0x83, 0xEC, 0x20,										//sub    rsp,0x20					(allocate shadow space)
 			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//movabs rax,0x1122334455667788		(use register to have an absolute 8 byte call)
@@ -144,10 +147,19 @@ namespace hookftw
 			0x9D														//popfq
 		};
 
+		*(int64_t*)&stub[saveRaxAddress] = (int64_t)&savedRax;
+		
 		int8_t stubJumpBack[stubJumpBackLength] = {
-			0xff, 0x25, 0x0, 0x0, 0x0,0x0,					//JMP[rip + 0]
-			0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	//absolute address of jump
+			0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs rax,0x1122334455667788
+			0xFF, 0x30,													//push   QWORD PTR [rax]
+			0x48, 0xA1, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs rax, [0x1122334455667788]  addr. of local saved rax
+			0xC3														//ret
 		};
+		
+		returnAddressFromTrampoline = (int64_t)&sourceAddress[hookLength];
+		//copy in address to return to
+		*(int64_t*)&stubJumpBack[2] = (int64_t)&returnAddressFromTrampoline;
+		*(int64_t*)&stubJumpBack[14] = (int64_t)&savedRax;
 
 		//remember for unhooking
 		this->hookLength = hookLength;
@@ -179,7 +191,7 @@ namespace hookftw
 		*(int64_t*)&trampoline[restoreRspAddress] = (int64_t)&originalRsp;
 
 		//write jump from trampoline to original code
-		*(int64_t*)&trampoline[stubLength + rellocatedBytesLength + 6] = (int64_t)&sourceAddress[hookLength];
+		//*(int64_t*)&trampoline[stubLength + rellocatedBytesLength + 6] = (int64_t)&sourceAddress[hookLength];
 
 		//make page of original code writeable
 		DWORD pageProtection;
@@ -192,7 +204,7 @@ namespace hookftw
 		*(uint64_t*)(&sourceAddress[2 + 4]) = (uint64_t)trampoline;		//destination to jump to
 
 		//NOP left over bytes
-		for (int i = stubJumpBackLength; i < hookLength; i++)
+		for (int i = 14; i < hookLength; i++)
 		{
 			sourceAddress[i] = 0x90;
 		}
@@ -208,6 +220,7 @@ namespace hookftw
 	 * @param proxy Function to be executed when hook is called
 	 */
 	FuncStartHook::FuncStartHook(int8_t* sourceAddress, void proxy(context* ctx))
+		: savedRax(0)
 	{
 		//1. rellocated instructions until we have minimum of 14 bytes
 		int8_t relloInstr[1000]; //TODO fixed size
@@ -234,17 +247,16 @@ namespace hookftw
 				//
 				//
 				//jump after jcc instruction because jcc is not taken
-				nextFreeByte[currentInstruction.length] = 0xEB;														//opcodes = JMP [rip+0]
-				nextFreeByte[currentInstruction.length + 1] = 0xE;														//opcodes = JMP [rip+0]
-				//*(uint32_t*)&nextFreeByte[currentInstruction.length+2] = 0;												//relative distance from RIP (+0) 
-				//*(uint64_t*)&nextFreeByte[currentInstruction.length+6] = (uint64_t)&nextFreeByte[currentInstruction.length + 20 + 8];	//destination to jump to
+				nextFreeByte[currentInstruction.length] = 0xEB;									//opcodes = JMP [rip+0]
+				nextFreeByte[currentInstruction.length + 1] = 0xE;								//opcodes = JMP [rip+0]
+				
 				//jump for when jcc is taken
-				nextFreeByte[currentInstruction.length + 2] = 0xFF;														//opcodes = JMP [rip+0]
-				nextFreeByte[currentInstruction.length + 3] = 0x25;														//opcodes = JMP [rip+0]
-				*(uint32_t*)&nextFreeByte[currentInstruction.length + 4] = 0;											//relative distance from RIP (+0) 
-				*(uint64_t*)&nextFreeByte[currentInstruction.length + 8] = originalJumpTarget;				//destination to jump to
+				nextFreeByte[currentInstruction.length + 2] = 0xFF;								//opcodes = JMP [rip+0]
+				nextFreeByte[currentInstruction.length + 3] = 0x25;								//opcodes = JMP [rip+0]
+				*(uint32_t*)&nextFreeByte[currentInstruction.length + 4] = 0;					//relative distance from RIP (+0) 
+				*(uint64_t*)&nextFreeByte[currentInstruction.length + 8] = originalJumpTarget;	//destination to jump to
 
-				relloInstrOffset += currentInstruction.length + 2 + 14;						//original instruction + 2x jmp [rip]; 8byteAddress
+				relloInstrOffset += currentInstruction.length + 2 + 14;							//original instruction + 2x jmp [rip]; 8byteAddress
 			}
 			else
 			{
@@ -291,5 +303,16 @@ namespace hookftw
 
 		//memory leak but enables unhooking inside hooked function and makes it threadsafe?
 		//delete[] trampoline;
+	}
+
+	void FuncStartHook::ChangeReturn(int64_t returnValue)
+	{
+		returnAddressFromTrampoline = returnValue;
+	}
+
+	void FuncStartHook::SkipOriginalFunction()
+	{
+		//this is the location of the RET instruction at the end of the trampoline
+		returnAddressFromTrampoline = (int64_t)(trampoline + 0x1d5); 
 	}
 }

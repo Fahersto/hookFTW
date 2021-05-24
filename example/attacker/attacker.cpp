@@ -11,36 +11,44 @@
 DWORD __stdcall Run(LPVOID hModule)
 {
 	//Create debugging console
-	hookftw::Logger::OpenDebuggingConsole("hookftw - x86 Debug");
+	//hookftw::Logger::OpenDebuggingConsole("hookftw");
 
-	//Offsets in victim.exe
+	//Offsets in victim.exe x32
 	int8_t* baseAddressOfProcess = (int8_t*)GetModuleHandle(NULL);
 	int8_t* calcFunctionStart = baseAddressOfProcess + 0x13F0;
 
+	//Offsets in victim.exe x64
+	int8_t* calcFunctionStart_x64 = baseAddressOfProcess + 0x13A0;
+
+	/*
 	hookftw::Hook hook(
 		calcFunctionStart,
 		[](hookftw::registers* registers) {
 			printf("Inside the hooked function\n");
 		}
 	);
-
-	/*
+	*/
+	
+	
 	hookftw::FuncStartHook prologHook(
-		functionStart,
+		calcFunctionStart_x64,
 		[](hookftw::context* ctx){
-			//ctx->SkipCall();
-			printf("Inside FuncStartHook\n");
+			//printf("Inside FuncStartHook\n");
+
+		ctx->SkipOriginalFunction();
+			//ctx->ChangeControllFlow(123213);
+
 			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(2));
 			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(3));
 		}
 	);
-	*/
+	
 
 	while (true)
 	{
 		if (GetAsyncKeyState(VK_F1) & 0x1)
 		{
-			hook.Unhook();
+			prologHook.Unhook();
 			break;
 		}
 		if (GetAsyncKeyState(VK_F4) & 0x8000)
@@ -50,7 +58,7 @@ DWORD __stdcall Run(LPVOID hModule)
 		Sleep(1);
 	}
 
-	hookftw::Logger::CloseDebuggingConsole();
+	//hookftw::Logger::CloseDebuggingConsole();
 	FreeLibraryAndExitThread(static_cast<HMODULE>(hModule), 0);
 	return TRUE;
 }

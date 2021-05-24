@@ -30,9 +30,16 @@ namespace hookftw
 		//contains the address after the trampoline stub. starts with the rellocated origin instruction.
 		int8_t* addressToCallFunctionWithoutHook;
 
+		//contains the address to which the trampoline returns. This can be used to skip the original call for example.
+		int64_t returnAddressFromTrampoline;
+
 		//number of bytes to overwrite (don't cut instructions in half)
 		int hookLength;
 
+		//rax is used to change the location to jump back
+		int64_t savedRax;
+		int64_t originalRsp;
+		
 		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, int8_t* rellocatedBytes, int rellocatedBytesLength, void proxy(context* ctx));
 
 		
@@ -41,6 +48,11 @@ namespace hookftw
 		FuncStartHook(int8_t* sourceAddress, void proxy(context* ctx));
 		
 		void Unhook();
+
+
+		//TODO this should not be accessible here. But we need to get here from context
+		void ChangeReturn(int64_t returnValue);
+		void SkipOriginalFunction();
 	};
 
 	/**
@@ -56,9 +68,14 @@ namespace hookftw
 		/**
 		 * Skips the call of the hooked function.
 		 */
-		void SkipCall()
+		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
 		{
+			hook->ChangeReturn(0x1337);
+		}
 
+		void SkipOriginalFunction()
+		{
+			hook->SkipOriginalFunction();
 		}
 
 		/**
