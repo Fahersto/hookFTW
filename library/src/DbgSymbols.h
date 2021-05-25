@@ -14,9 +14,9 @@ namespace hookftw
 	{
 		static bool symbolsLoaded_;
 		
-		bool LoadSymbols();
+		bool LoadSymbols(char* path);
 	public:
-		DbgSymbols();
+		DbgSymbols(char* path = nullptr);
 		int8_t* GetAddressBySymbolName(const char* name);
 		void EnumerateSymbols();
 	};

@@ -10,11 +10,11 @@ namespace hookftw
 {
     bool DbgSymbols::symbolsLoaded_ = false;
 
-    DbgSymbols::DbgSymbols()
+    DbgSymbols::DbgSymbols(char* path)
     {
     	if (!symbolsLoaded_)
     	{
-            LoadSymbols();
+            LoadSymbols(path);
             symbolsLoaded_ = true;
     	}
     }
@@ -24,11 +24,11 @@ namespace hookftw
 	 *
 	 * @return <code>true</code> or <code>false</code> depending on success of load operation
 	 */
-    bool DbgSymbols::LoadSymbols()
+    bool DbgSymbols::LoadSymbols(char* path)
     {
         SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
 
-        if (!SymInitialize(GetCurrentProcess(), NULL, FALSE))
+        if (!SymInitialize(GetCurrentProcess(), path, FALSE))
         {
             printf("SymInitialize returned error : %d\n", GetLastError());
             return false;
@@ -52,7 +52,13 @@ namespace hookftw
 
         char executablePath[MAX_PATH];
         GetModuleFileNameA(NULL, executablePath, MAX_PATH);
-        const DWORD64 base_addr = SymLoadModuleEx(GetCurrentProcess(), NULL, executablePath, NULL, NULL, 0x7fffffffffffffff, NULL, 0);
+        const DWORD64 base_addr = SymLoadModuleEx(GetCurrentProcess(), NULL, executablePath, NULL, (DWORD64)GetModuleHandle(nullptr), 0x7fffffffffffffff, NULL, 0);
+
+    	if(!base_addr)
+    	{
+            auto error = GetLastError();
+            printf("SymLoadModuleEx failed: %d", error);
+    	}
 
         TCHAR szSymbolName[MAX_SYM_NAME];
         ULONG64 buffer[(sizeof(SYMBOL_INFO) +
@@ -71,10 +77,10 @@ namespace hookftw
         if (SymFromName(GetCurrentProcess(), name, pSymbol))
         {
             int8_t* base = (int8_t*)base_addr;
-            int8_t* factorioBase = (int8_t*)GetModuleHandleA(NULL);
             int8_t* symbolAddress = (int8_t*)pSymbol->Address;
+            int8_t* symbolBase = (int8_t*)pSymbol->ModBase;
         	
-			return symbolAddress - base + factorioBase;
+			return symbolAddress - symbolBase + base;
         }
 
         printf("SymFromName returned error : %d\n", GetLastError());
@@ -107,6 +113,6 @@ namespace hookftw
         char executablePath[MAX_PATH];
         GetModuleFileNameA(NULL, executablePath, MAX_PATH);
         auto base_addr = (size_t)SymLoadModuleEx(GetCurrentProcess(), NULL, executablePath, NULL, NULL, 0x7fffffffffffffff, NULL, 0);
-        SymEnumSymbols(GetCurrentProcess(), base_addr, "MainLoop*", EnumSymProc, NULL);
+        SymEnumSymbols(GetCurrentProcess(), base_addr, allInEveryModule, EnumSymProc, NULL);
     }
 }

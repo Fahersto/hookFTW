@@ -44,6 +44,18 @@ int calculation(int x)
 	return x * x + z - t + k * 3 - y;
 }
 
+int assignTest(int rofl)
+{
+	int returnVal = rofl * 2 + 3;
+	rofl += 3;
+	returnVal += rofl - 2 * rofl;
+	rofl += returnVal;
+	int tmp = returnVal % rofl;
+	returnVal *= tmp + 2;
+	printf("inside: assignTest\n");
+	return returnVal;
+}
+
 int main()
 {
 	printf("aslr: %p calculationOffset: %p calculation: %p\n", GetModuleHandle(NULL), (BYTE*)calculation - (BYTE*)GetModuleHandle(NULL), calculation);
@@ -51,6 +63,10 @@ int main()
 	{
 		const int value = 2;
 		printf("%d calculation = %d\n", value, calculation(value));
+
+		int test = 1337;
+		test = assignTest(1337);
+		printf("assignTest = %d\n", test);
 		Sleep(1000);
 	}
 }

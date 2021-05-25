@@ -10,14 +10,14 @@ namespace hookftw
 	void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, int8_t* rellocatedBytes,
 		int rellocatedBytesLength, void proxy(context* ctx))
 	{
-		const int stubLength = 432;
-		const int stubJumpBackLength = 23;
-		const int proxyFunctionAddressIndex = 228;
+		const int stubLength = 422;
+		const int controlFlowStubLength = 33;
+		const int proxyFunctionAddressIndex = 218;
 
-		const int saveRaxAddress = 180;
-		const int thisAddress = 190;
-		const int saveRspAddress = 206;
-		const int restoreRspAddress = 240;
+		//const int saveRaxAddress = 180;
+		const int thisAddress = 180;
+		const int saveRspAddress = 196;
+		const int restoreRspAddress = 230;
 
 		//14 bytes are required to place JMP[rip+0x] 0x1122334455667788
 		assert(hookLength >= 14);
@@ -81,7 +81,7 @@ namespace hookftw
 			0x54,														//push	 rsp
 			0x54,														//push	 rsp
 
-			0x48, 0xA3, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs ds:0x1122334455667788,rax
+			
 			
 			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
 			0x50,														//push	 rax
@@ -146,43 +146,55 @@ namespace hookftw
 			0x48, 0x83, 0xC4, 0x10,										//add    rsp,0x20
 			0x9D														//popfq
 		};
-
-		*(int64_t*)&stub[saveRaxAddress] = (int64_t)&savedRax;
 		
-		int8_t stubJumpBack[stubJumpBackLength] = {
+		
+
+		//used to the controll flow after the hook can be changed (for example skip oroginal call)
+		int8_t controllFlowStub[controlFlowStubLength] = {
+			0x48, 0xA3, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs ds:0x1122334455667788,rax
 			0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs rax,0x1122334455667788
 			0xFF, 0x30,													//push   QWORD PTR [rax]
 			0x48, 0xA1, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs rax, [0x1122334455667788]  addr. of local saved rax
 			0xC3														//ret
 		};
-		
-		returnAddressFromTrampoline = (int64_t)&sourceAddress[hookLength];
-		//copy in address to return to
-		*(int64_t*)&stubJumpBack[2] = (int64_t)&returnAddressFromTrampoline;
-		*(int64_t*)&stubJumpBack[14] = (int64_t)&savedRax;
-
-		//remember for unhooking
-		this->hookLength = hookLength;
-		this->sourceAddress = sourceAddress;
+		*(int64_t*)&controllFlowStub[2] = (int64_t)&savedRax;
 
 		//save original bytes
 		originalBytes = new int8_t[hookLength];
 		memcpy(originalBytes, sourceAddress, hookLength);
 
 		//allocate space for stub + space for RELLOCATED bytes + jumpback
-		trampoline = (int8_t*)VirtualAlloc(NULL, stubLength + rellocatedBytesLength + stubJumpBackLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		trampoline = (int8_t*)VirtualAlloc(NULL, stubLength + rellocatedBytesLength + controlFlowStubLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		
+		returnAddressFromTrampoline = (int64_t)(trampoline + stubLength +  controlFlowStubLength);
+		
+		//copy in address to return to
+		*(int64_t*)&controllFlowStub[12] = (int64_t)&returnAddressFromTrampoline;
+		*(int64_t*)&controllFlowStub[24] = (int64_t)&savedRax;
+
+		//remember for unhooking
+		this->hookLength = hookLength;
+		this->sourceAddress = sourceAddress;
 
 		//copy stub to trampoline
 		memcpy(trampoline, stub, stubLength);
-
-		//copy original bytes to trampoline
-		memcpy(&trampoline[stubLength], rellocatedBytes, rellocatedBytesLength);
-
+	
 		//save address after the stub so we can call the function without running into our hook again
 		addressToCallFunctionWithoutHook = &trampoline[stubLength];
 
 		//copy jump back to original code
-		memcpy(&trampoline[stubLength + rellocatedBytesLength], stubJumpBack, stubJumpBackLength);
+		memcpy(&trampoline[stubLength], controllFlowStub, controlFlowStubLength);
+		
+		//copy original bytes to trampoline
+		memcpy(&trampoline[stubLength + controlFlowStubLength], rellocatedBytes, rellocatedBytesLength);
+
+		const int stubJumpBackLength = 14;
+		int8_t jmpBackStub[stubJumpBackLength] = {
+			0xff, 0x25, 0x0, 0x0, 0x0,0x0,					//JMP[rip + 0]
+			0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	//absolute address of jump
+		};
+		*(int64_t*)&jmpBackStub[6] = (int64_t )&sourceAddress[hookLength];
+		memcpy(&trampoline[stubLength + controlFlowStubLength + rellocatedBytesLength], jmpBackStub, stubJumpBackLength);
 
 		//insert address of proxy function to call instruction
 		*(int64_t*)&trampoline[thisAddress] = (int64_t)this;
@@ -313,6 +325,6 @@ namespace hookftw
 	void FuncStartHook::SkipOriginalFunction()
 	{
 		//this is the location of the RET instruction at the end of the trampoline
-		returnAddressFromTrampoline = (int64_t)(trampoline + 0x1d5); 
+		returnAddressFromTrampoline = (int64_t)(trampoline + 0x1b5 + hookLength); 
 	}
 }

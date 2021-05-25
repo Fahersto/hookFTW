@@ -7,7 +7,14 @@
 #include <Logger.h>
 #include <DbgSymbols.h>
 
-#if _WIN32
+
+int answerToLife(int x)
+{
+	printf("42\n");
+	return x;
+}
+
+#if _WIN64
 DWORD __stdcall Run(LPVOID hModule)
 {
 	//Create debugging console
@@ -20,16 +27,37 @@ DWORD __stdcall Run(LPVOID hModule)
 	//Offsets in victim.exe x64
 	int8_t* calcFunctionStart_x64 = baseAddressOfProcess + 0x13A0;
 
+	int8_t* answerToLifeStart = (int8_t*)GetModuleHandleA("example.dll") + 0x1ed0;
+
+	hookftw::DbgSymbols dbgSymbols;
+	dbgSymbols.EnumerateSymbols();
+	
+	hookftw::FuncStartHook prologHook(
+		dbgSymbols.GetAddressBySymbolName("assignTest"),
+		[](hookftw::context* ctx) {
+			printf("Inside FuncStartHook\n");
+
+			ctx->registers.rax = 0x4711;
+			ctx->SkipOriginalFunction();
+
+			//ctx->ChangeControllFlow(123213);
+
+			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(2));
+			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(3));
+		}
+	);
+
 	/*
+	
 	hookftw::Hook hook(
-		calcFunctionStart,
+		dbgSymbols.GetAddressBySymbolName("calculation"),
 		[](hookftw::registers* registers) {
 			printf("Inside the hooked function\n");
 		}
 	);
 	*/
 	
-	
+	/*
 	hookftw::FuncStartHook prologHook(
 		calcFunctionStart_x64,
 		[](hookftw::context* ctx){
@@ -42,7 +70,7 @@ DWORD __stdcall Run(LPVOID hModule)
 			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(3));
 		}
 	);
-	
+	*/
 
 	while (true)
 	{
@@ -50,6 +78,11 @@ DWORD __stdcall Run(LPVOID hModule)
 		{
 			prologHook.Unhook();
 			break;
+		}
+		if (GetAsyncKeyState(VK_F2) & 0x1)
+		{
+			answerToLife(0x300);
+			printf("answerToLife %p\n", answerToLife);
 		}
 		if (GetAsyncKeyState(VK_F4) & 0x8000)
 		{

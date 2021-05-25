@@ -203,7 +203,80 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
 
-#if _WIN32
+#if _WIN64
+	/**
+	 * Hooks a function at the given address.
+	 *
+	 * \note This function is not threadsafe. If the function that is being hooked is running the instructions that are replaced for hooking the behavior is undefined and the application is likely to crash.
+	 * \warning Places that can't be hooked currently:
+	 *	- Locations where the original binary jumps to
+	 *	- RIP relative memory instructions (mov, lea)
+	 * @param sourceAddress Address to apply the hook to
+	 * @param proxy Function callback to be executed when hook is called
+	 */
+	Hook::Hook(int8_t* sourceAddress, void __fastcall proxy(registers* regs))
+		: originalBytes(nullptr), sourceAddress(nullptr), trampoline(nullptr), hookLength(0)
+	{
+		int requiredBytes = 5;
+
+		//allocate the trampoline. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
+		SYSTEM_INFO systemInfo;
+		GetSystemInfo(&systemInfo);
+		int allocationAttemps = 0;
+		while (!trampoline)
+		{
+			//TODO is this calculation correct?
+			int8_t* targetAddress = sourceAddress + 2147483647 - (allocationAttemps++ * systemInfo.dwPageSize);
+			if (targetAddress > 0)
+			{
+				//Try to allocate trampoline within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
+				trampoline = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+			}
+			else
+			{
+				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
+				trampoline = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				requiredBytes = 14;
+			}
+		}
+
+		//1. rellocated instructions until we reached the requiredBytes (5 or 14 Bytes)
+		// Initialize decoder context
+		ZydisDecoder decoder;
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
+		ZyanUSize offset = 0;
+
+		ZydisDecodedInstruction currentInstruction;
+
+		std::vector<int8_t> rellocatedBytes;
+		while (offset < requiredBytes)
+		{
+			if (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&decoder, sourceAddress + offset, 15, &currentInstruction)))
+			{
+				if (currentInstruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE)
+				{
+					Disassembler::RellocateInstruction(currentInstruction, sourceAddress + offset, rellocatedBytes);
+				}
+				else
+				{
+					//just copy the original bytes
+					rellocatedBytes.insert(rellocatedBytes.end(), sourceAddress + offset, sourceAddress + offset + currentInstruction.length);
+				}
+				offset += currentInstruction.length;
+			}
+			else
+			{
+				printf("ERROR: Couldn't disassemble address %llx\n", sourceAddress + offset);
+				return;
+			}
+		}
+
+		//2. Get trampoline stub
+		//3. Add rellocated instructions to trampoline
+		//4. Apply hook
+		GenerateTrampolineAndApplyHook(sourceAddress, offset, rellocatedBytes, proxy);
+	}
+#elif _WIN32
 	/**
 	* Hooks a function at the given address.
 	*
@@ -354,79 +427,7 @@ namespace hookftw
 		//restore page protection of original code
 		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
-#elif _WIN64
-	/**
-	 * Hooks a function at the given address.
-	 *
-	 * \note This function is not threadsafe. If the function that is being hooked is running the instructions that are replaced for hooking the behavior is undefined and the application is likely to crash.
-	 * \warning Places that can't be hooked currently:
-	 *	- Locations where the original binary jumps to
-	 *	- RIP relative memory instructions (mov, lea)
-	 * @param sourceAddress Address to apply the hook to
-	 * @param proxy Function callback to be executed when hook is called
-	 */
-	Hook::Hook(int8_t* sourceAddress, void __fastcall proxy(registers* regs))
-		: originalBytes(nullptr), sourceAddress(nullptr), trampoline(nullptr), hookLength(0)
-	{
-		int requiredBytes = 5;
 
-		//allocate the trampoline. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
-		int allocationAttemps = 0;
-		while (!trampoline)
-		{
-			//TODO is this calculation correct?
-			int8_t* targetAddress = sourceAddress + 2147483647 - (allocationAttemps++ * systemInfo.dwPageSize);
-			if (targetAddress > 0)
-			{
-				//Try to allocate trampoline within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
-				trampoline = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-			}
-			else
-			{
-				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-				requiredBytes = 14;
-			}
-		}
-
-		//1. rellocated instructions until we reached the requiredBytes (5 or 14 Bytes)
-		// Initialize decoder context
-		ZydisDecoder decoder;
-		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
-		ZyanUSize offset = 0;
-
-		ZydisDecodedInstruction currentInstruction;
-
-		std::vector<int8_t> rellocatedBytes;
-		while (offset < requiredBytes)
-		{
-			if (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&decoder, sourceAddress + offset, 15, &currentInstruction)))
-			{
-				if (currentInstruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE)
-				{
-					Disassembler::RellocateInstruction(currentInstruction, sourceAddress + offset, rellocatedBytes);
-				}
-				else
-				{
-					//just copy the original bytes
-					rellocatedBytes.insert(rellocatedBytes.end(), sourceAddress + offset, sourceAddress + offset + currentInstruction.length);
-				}
-				offset += currentInstruction.length;
-			}
-			else
-			{
-				printf("ERROR: Couldn't disassemble address %llx\n", sourceAddress + offset);
-				return;
-			}
-		}
-
-		//2. Get trampoline stub
-		//3. Add rellocated instructions to trampoline
-		//4. Apply hook
-		GenerateTrampolineAndApplyHook(sourceAddress, offset, rellocatedBytes, proxy);
-	}
 #endif
 	/**
 	 * Restores the original function by copying back the original bytes of the hooked function that where overwritten by placing the hook.
