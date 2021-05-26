@@ -255,7 +255,7 @@ namespace hookftw
 			{
 				if (currentInstruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE)
 				{
-					Disassembler::RellocateInstruction(currentInstruction, sourceAddress + offset, rellocatedBytes);
+					Disassembler::RellocateInstruction(&currentInstruction, sourceAddress + offset, rellocatedBytes);
 				}
 				else
 				{

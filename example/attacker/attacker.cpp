@@ -95,7 +95,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	FreeLibraryAndExitThread(static_cast<HMODULE>(hModule), 0);
 	return TRUE;
 }
-#elif _WIN64
+#elif _WIN32
 DWORD __stdcall Run(LPVOID hModule)
 {
 	//Create debugging console

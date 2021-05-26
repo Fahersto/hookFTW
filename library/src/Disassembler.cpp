@@ -15,14 +15,14 @@ namespace hookftw
 	/**
 	 * Prints the given instruction to console
 	 */
-	void Disassembler::PrintInstruction(ZyanU64 runtime_address, ZydisDecodedInstruction instruction)
+	void Disassembler::PrintInstruction(int64_t runtime_address, void* instruction)
 	{
 		ZydisFormatter formatter;
 		ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 
 		char buffer[256];
 		printf("[%llx]", runtime_address);
-		ZydisFormatterFormatInstruction(&formatter, &instruction, buffer, sizeof(buffer), runtime_address);
+		ZydisFormatterFormatInstruction(&formatter, (ZydisDecodedInstruction*)instruction, buffer, sizeof(buffer), runtime_address);
 		puts(buffer);
 	}
 
@@ -33,8 +33,9 @@ namespace hookftw
 	 *  @param instructionAddress Address of the instruction to be rellocated
 	 *  @param rellocatedInstructions Vector to store the rellocated instructions
 	 */
-	void Disassembler::RellocateInstruction(const ZydisDecodedInstruction& currentInstruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedInstructions)
+	void Disassembler::RellocateInstruction(void* uncastedCurrentInstruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedInstructions)
 	{
+		ZydisDecodedInstruction& currentInstruction = *(ZydisDecodedInstruction*)uncastedCurrentInstruction;
 		ZyanU64 originalJumpTarget;
 		ZydisCalcAbsoluteAddress(&currentInstruction, currentInstruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 
@@ -74,7 +75,7 @@ namespace hookftw
 		{
 		case ZYDIS_CATEGORY_UNCOND_BR:
 				printf("ZYDIS_CATEGORY_UNCOND_BR\n");
-				PrintInstruction((ZyanU64)instructionAddress, currentInstruction);
+				PrintInstruction((ZyanU64)instructionAddress, &currentInstruction);
 			break;
 		case ZYDIS_CATEGORY_COND_BR:
 			printf("ZYDIS_CATEGORY_COND_BR\n");
@@ -82,19 +83,19 @@ namespace hookftw
 			{
 				case ZYDIS_MNEMONIC_LOOP:
 					printf("\tZYDIS_MNEMONIC_LOOP\n\t\t");
-					PrintInstruction((ZyanU64)instructionAddress, currentInstruction);	//Decrement rcx; jump short if count ≠ 0.
+					PrintInstruction((ZyanU64)instructionAddress, &currentInstruction);	//Decrement rcx; jump short if count ≠ 0.
 					break;
 				case ZYDIS_MNEMONIC_LOOPE:
 					printf("\tZYDIS_MNEMONIC_LOOPE\n\t\t");
-					PrintInstruction((ZyanU64)instructionAddress, currentInstruction);	//Decrement rcx; jump short if count ≠ 0 and ZF = 1
+					PrintInstruction((ZyanU64)instructionAddress, &currentInstruction);	//Decrement rcx; jump short if count ≠ 0 and ZF = 1
 					break;
 				case ZYDIS_MNEMONIC_LOOPNE:
 					printf("\tZYDIS_MNEMONIC_LOOPNE\n\t\t");
-					PrintInstruction((ZyanU64)instructionAddress, currentInstruction);	//Decrement rcx; jump short if count ≠ 0 and ZF = 0
+					PrintInstruction((ZyanU64)instructionAddress, &currentInstruction);	//Decrement rcx; jump short if count ≠ 0 and ZF = 0
 					break;
 				default:
 					printf("\tUNHANDLED ZYDIS_CATEGORY_COND_BR MNEMONIC\n\t\t");
-					PrintInstruction((ZyanU64)instructionAddress, currentInstruction);
+					PrintInstruction((ZyanU64)instructionAddress, &currentInstruction);
 					break;
 			}
 			break;
@@ -112,7 +113,7 @@ namespace hookftw
 		}
 		default:
 			printf("UNHANDLED CATEGORY\n\t");
-			PrintInstruction((ZyanU64)instructionAddress, currentInstruction);
+			PrintInstruction((ZyanU64)instructionAddress, &currentInstruction);
 			break;
 		}
 	}
@@ -151,33 +152,33 @@ namespace hookftw
 				switch (instruction.meta.category)
 				{
 				case ZYDIS_CATEGORY_UNCOND_BR:
-					PrintInstruction(runtime_address, instruction);
+					PrintInstruction(runtime_address, &instruction);
 					break;
 				case ZYDIS_CATEGORY_COND_BR:
 					switch (instruction.mnemonic)
 					{
 					case ZYDIS_MNEMONIC_LOOP:
-						PrintInstruction(runtime_address, instruction);	//Decrement rcx; jump short if count ≠ 0.
+						PrintInstruction(runtime_address, &instruction);	//Decrement rcx; jump short if count ≠ 0.
 						break;
 					case ZYDIS_MNEMONIC_LOOPE:
-						PrintInstruction(runtime_address, instruction);	//Decrement rcx; jump short if count ≠ 0 and ZF = 1
+						PrintInstruction(runtime_address, &instruction);	//Decrement rcx; jump short if count ≠ 0 and ZF = 1
 						break;
 					case ZYDIS_MNEMONIC_LOOPNE:
-						PrintInstruction(runtime_address, instruction);	////Decrement rcx; jump short if count ≠ 0 and ZF = 0
+						PrintInstruction(runtime_address, &instruction);	////Decrement rcx; jump short if count ≠ 0 and ZF = 0
 						break;
 					default:
 						printf("\tUNHANDLED ZYDIS_CATEGORY_COND_BR: ");
-						PrintInstruction(runtime_address, instruction);
+						PrintInstruction(runtime_address, &instruction);
 						break;
 					}
 					break;
 				case ZYDIS_CATEGORY_CALL:
 					printf("ZYDIS_CATEGORY_CALL: ");
-					PrintInstruction(runtime_address, instruction);
+					PrintInstruction(runtime_address, &instruction);
 					break;
 				default:
 					printf("UNHANDLED CATEGORY: ");
-					PrintInstruction(runtime_address, instruction);
+					PrintInstruction(runtime_address, &instruction);
 					break;
 				}
 			}

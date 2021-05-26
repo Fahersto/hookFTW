@@ -3,9 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <Windows.h>
-#include <Zydis/DecoderTypes.h>
 
-#include "Zydis/Formatter.h"
 
 namespace hookftw
 {
@@ -17,8 +15,8 @@ namespace hookftw
 	class Disassembler
 	{
 	public:
-		static void PrintInstruction(ZyanU64 runtime_address, ZydisDecodedInstruction instruction);
-		static void RellocateInstruction(const ZydisDecodedInstruction& currentInstruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedInstructions);
+		static void PrintInstruction(int64_t runtime_address, void* instruction);
+		static void RellocateInstruction(void* currentInstruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedInstructions);
 		void Analyse(int8_t* address, size_t byteCount);
 	};
 }
