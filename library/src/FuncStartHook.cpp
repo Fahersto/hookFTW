@@ -80,9 +80,6 @@ namespace hookftw
 			0x50,														//push   rax
 			0x54,														//push	 rsp
 			0x54,														//push	 rsp
-
-			
-			
 			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
 			0x50,														//push	 rax
 			//0x48, 0x89, 0xE1,											//mov    rcx,rsp					//make first argument point at a
@@ -168,11 +165,13 @@ namespace hookftw
 		
 		returnAddressFromTrampoline = (int64_t)(trampoline + stubLength +  controlFlowStubLength);
 		
-		//copy in address to return to
+		//insert address of the value to return code execution after hook
 		*(int64_t*)&controllFlowStub[12] = (int64_t)&returnAddressFromTrampoline;
+
+		//insert address of member variable to save RAX
 		*(int64_t*)&controllFlowStub[24] = (int64_t)&savedRax;
 
-		//remember for unhooking
+		//remember hook address and length for unhooking
 		this->hookLength = hookLength;
 		this->sourceAddress = sourceAddress;
 
@@ -180,7 +179,7 @@ namespace hookftw
 		memcpy(trampoline, stub, stubLength);
 	
 		//save address after the stub so we can call the function without running into our hook again
-		addressToCallFunctionWithoutHook = &trampoline[stubLength];
+		addressToCallFunctionWithoutHook = &trampoline[stubLength + controlFlowStubLength];
 
 		//copy jump back to original code
 		memcpy(&trampoline[stubLength], controllFlowStub, controlFlowStubLength);
