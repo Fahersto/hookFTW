@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 #include <Windows.h>
 #include <xmmintrin.h>
 
@@ -40,7 +41,7 @@ namespace hookftw
 		int64_t savedRax;
 		int64_t originalRsp;
 		
-		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, int8_t* rellocatedBytes, int rellocatedBytesLength, void proxy(context* ctx));
+		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void proxy(context* ctx));
 
 		
 	public:

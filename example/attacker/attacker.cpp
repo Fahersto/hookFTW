@@ -30,20 +30,15 @@ DWORD __stdcall Run(LPVOID hModule)
 	int8_t* answerToLifeStart = (int8_t*)GetModuleHandleA("example.dll") + 0x1ed0;
 
 	hookftw::DbgSymbols dbgSymbols;
-	dbgSymbols.EnumerateSymbols();
+	//dbgSymbols.EnumerateSymbols();
 	
 	hookftw::FuncStartHook prologHook(
 		dbgSymbols.GetAddressBySymbolName("assignTest"),
 		[](hookftw::context* ctx) {
 			printf("Inside FuncStartHook\n");
-
-			ctx->registers.rax = 0x4711;
-			ctx->SkipOriginalFunction();
-
 			//ctx->ChangeControllFlow(123213);
-
-			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(2));
-			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(3));
+			ctx->SkipOriginalFunction();
+			ctx->registers.rax = ctx->CallOriginal<int>(2);
 		}
 	);
 
@@ -110,15 +105,14 @@ DWORD __stdcall Run(LPVOID hModule)
 	int8_t* ripRel = baseAddressOfProcess + 0x27fd;
 
 	//Load debug symbols
-	hookftw::DbgSymbols symbols;
-	int8_t* gameUpdateStep = symbols.GetAddressBySymbolName("MainLoop::gameUpdateStep");
+	hookftw::DbgSymbols dbgSymbols;
 
 
 	hookftw::Disassembler disassembler;
 	//disassembler.Analyse((int8_t*)GetModuleHandle(NULL) + 0x149, 0x6000);
 
 	hookftw::Hook hook(
-		gameUpdateStep,
+		dbgSymbols.GetAddressBySymbolName("assignTest"),
 		[](hookftw::registers* registers) {
 		printf("Inside the hooked function\n");
 	}

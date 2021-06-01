@@ -1,14 +1,16 @@
 #include "FuncStartHook.h"
 
 #include <cassert>
+#include <vector>
 
 #include <Zydis/Zydis.h>
 #include <Zydis/DecoderTypes.h>
 
+#include "Decoder.h"
+
 namespace hookftw
 {
-	void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, int8_t* rellocatedBytes,
-		int rellocatedBytesLength, void proxy(context* ctx))
+	void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void proxy(context* ctx))
 	{
 		const int stubLength = 422;
 		const int controlFlowStubLength = 33;
@@ -161,7 +163,7 @@ namespace hookftw
 		memcpy(originalBytes, sourceAddress, hookLength);
 
 		//allocate space for stub + space for RELLOCATED bytes + jumpback
-		trampoline = (int8_t*)VirtualAlloc(NULL, stubLength + rellocatedBytesLength + controlFlowStubLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		trampoline = (int8_t*)VirtualAlloc(NULL, stubLength + relocatedBytes.size() + controlFlowStubLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		
 		returnAddressFromTrampoline = (int64_t)(trampoline + stubLength +  controlFlowStubLength);
 		
@@ -185,7 +187,7 @@ namespace hookftw
 		memcpy(&trampoline[stubLength], controllFlowStub, controlFlowStubLength);
 		
 		//copy original bytes to trampoline
-		memcpy(&trampoline[stubLength + controlFlowStubLength], rellocatedBytes, rellocatedBytesLength);
+		memcpy(&trampoline[stubLength + controlFlowStubLength], relocatedBytes.data(), relocatedBytes.size());
 
 		const int stubJumpBackLength = 14;
 		int8_t jmpBackStub[stubJumpBackLength] = {
@@ -193,7 +195,7 @@ namespace hookftw
 			0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	//absolute address of jump
 		};
 		*(int64_t*)&jmpBackStub[6] = (int64_t )&sourceAddress[hookLength];
-		memcpy(&trampoline[stubLength + controlFlowStubLength + rellocatedBytesLength], jmpBackStub, stubJumpBackLength);
+		memcpy(&trampoline[stubLength + controlFlowStubLength + relocatedBytes.size()], jmpBackStub, stubJumpBackLength);
 
 		//insert address of proxy function to call instruction
 		*(int64_t*)&trampoline[thisAddress] = (int64_t)this;
@@ -233,55 +235,13 @@ namespace hookftw
 	FuncStartHook::FuncStartHook(int8_t* sourceAddress, void proxy(context* ctx))
 		: savedRax(0)
 	{
-		//1. rellocated instructions until we have minimum of 14 bytes
-		int8_t relloInstr[1000]; //TODO fixed size
-		ZyanU8* data = (ZyanU8*)sourceAddress;
-
-		// Initialize decoder context
-		ZydisDecoder decoder;
-		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
-		ZyanUSize offset = 0;
-
-		int relativeInstructions = 0;
-		ZydisDecodedInstruction currentInstruction;
-		int relloInstrOffset = 0;
-		while (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&decoder, data + offset, 15, &currentInstruction)) && offset < 14) //only need 14 bytes
-		{
-			int8_t* nextFreeByte = relloInstr + relloInstrOffset;
-			if (currentInstruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE)
-			{
-				ZyanU64 originalJumpTarget;
-				ZydisCalcAbsoluteAddress(&currentInstruction, currentInstruction.operands, (ZyanU64)(data + offset), &originalJumpTarget);
-
-				memcpy(nextFreeByte, data + offset, currentInstruction.length);
-				nextFreeByte[1] = 0x2; //jump over. Change last byte.. this is hardcoded to instructions with 1 byte offset
-				//
-				//
-				//jump after jcc instruction because jcc is not taken
-				nextFreeByte[currentInstruction.length] = 0xEB;									//opcodes = JMP [rip+0]
-				nextFreeByte[currentInstruction.length + 1] = 0xE;								//opcodes = JMP [rip+0]
-				
-				//jump for when jcc is taken
-				nextFreeByte[currentInstruction.length + 2] = 0xFF;								//opcodes = JMP [rip+0]
-				nextFreeByte[currentInstruction.length + 3] = 0x25;								//opcodes = JMP [rip+0]
-				*(uint32_t*)&nextFreeByte[currentInstruction.length + 4] = 0;					//relative distance from RIP (+0) 
-				*(uint64_t*)&nextFreeByte[currentInstruction.length + 8] = originalJumpTarget;	//destination to jump to
-
-				relloInstrOffset += currentInstruction.length + 2 + 14;							//original instruction + 2x jmp [rip]; 8byteAddress
-			}
-			else
-			{
-				//Just copy
-				memcpy(nextFreeByte, data + offset, currentInstruction.length);
-				relloInstrOffset += currentInstruction.length;
-			}
-			offset += currentInstruction.length;
-		}
-
+		Decoder decoder;
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, 14);
+		
 		//2. Get trampoline stub
 		//3. Add rellocated instructions to trampoline
 		//4. Apply hook
-		GenerateTrampolineAndApplyHook(sourceAddress, offset, relloInstr, relloInstrOffset, proxy);
+		GenerateTrampolineAndApplyHook(sourceAddress, 17, relocatedBytes, proxy);
 	}
 
 	/**

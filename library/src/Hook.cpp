@@ -1,6 +1,7 @@
 #include "Hook.h"
 
 #include "Disassembler.h"
+#include "Decoder.h"
 
 #include <cassert>
 
@@ -240,9 +241,11 @@ namespace hookftw
 			}
 		}
 
+		printf("[Info] - trampoline allocated at %p\n", trampoline);
+
 		//1. rellocated instructions until we reached the requiredBytes (5 or 14 Bytes)
 		// Initialize decoder context
-		ZydisDecoder decoder;
+		/*ZydisDecoder decoder;
 		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
 		ZyanUSize offset = 0;
 
@@ -269,12 +272,15 @@ namespace hookftw
 				printf("ERROR: Couldn't disassemble address %llx\n", sourceAddress + offset);
 				return;
 			}
-		}
+		}*/
+
+		Decoder decoder;
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, requiredBytes);
 
 		//2. Get trampoline stub
 		//3. Add rellocated instructions to trampoline
 		//4. Apply hook
-		GenerateTrampolineAndApplyHook(sourceAddress, offset, rellocatedBytes, proxy);
+		GenerateTrampolineAndApplyHook(sourceAddress, 16, relocatedBytes, proxy);
 	}
 #elif _WIN32
 	/**

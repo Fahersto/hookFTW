@@ -16,7 +16,6 @@ namespace hookftw
 	{
 	public:
 		static void PrintInstruction(int64_t runtime_address, void* instruction);
-		static void RellocateInstruction(void* currentInstruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedInstructions);
 		void Analyse(int8_t* address, size_t byteCount);
 	};
 }
