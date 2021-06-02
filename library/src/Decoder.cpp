@@ -96,7 +96,7 @@ namespace hookftw
 		rellocatedbytes.push_back(0x0);				//
 		rellocatedbytes.push_back(0x0);				//
 
-		rellocatedbytes.insert(rellocatedbytes.end(), &originalJumpTarget, &originalJumpTarget + 8); //destination to jump to: 8 Bytes
+		rellocatedbytes.insert(rellocatedbytes.end(), (int8_t*)&originalJumpTarget, (int8_t*)&originalJumpTarget + 8); //destination to jump to: 8 Bytes
 		printf("[Info] - Decoder relocated a branch instruction\n");
 	}
 
