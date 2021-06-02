@@ -125,10 +125,6 @@ namespace hookftw
 			0x51,														//push   rcx
 			0x50,														//push   rax
 			0x54,														//push	 rsp
-
-			//todo account for all changes to rsp the trampoline already made
-
-			
 			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
 			0x50,														//push	 rax
 			0x48, 0x89, 0xE1,											//mov    rcx, rsp					//make first argument point at a
@@ -578,6 +574,8 @@ void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int ho
 	{
 		//this is the location of the RET instruction at the end of the trampoline_
 		//TODO hardcoding the size here at a random location is bad
-		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0x1b5 + 12+ hookLength_);
+		//this will cause the RET at the end of the trampoline (but before relocated instructions) to return to itself.
+		//The next execution of the same RET instruciton will then take the return address pushed on the stack by the caller of the hooked funciton, therefore skipping the call.
+		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0x1b5 + 9+ hookLength_);
 	}
 }

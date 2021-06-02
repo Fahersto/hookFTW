@@ -47,10 +47,11 @@ DWORD __stdcall Run(LPVOID hModule)
 		calcFunctionStart,
 		[](hookftw::context* ctx) {
 			printf("Inside FuncStartHook\n");
-			ctx->PrintRegister();
+			//ctx->PrintRegister();
+			//printf("rsp at hook address: %llx\n", ctx->GetRspAtHookAddress());
 			//ctx->ChangeControllFlow(123213);
-			//ctx->SkipOriginalFunction();
-			//ctx->registers.rax = ctx->CallOriginal<int>(2);
+			ctx->SkipOriginalFunction();
+			ctx->rax = ctx->CallOriginal<int>(2);
 	}
 	);
 	

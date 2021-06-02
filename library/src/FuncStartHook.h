@@ -100,6 +100,20 @@ namespace hookftw
 		__m128 xmm14;
 		__m128 xmm15;
 
+		/**
+		 * Returns the value of the rsp register at the address where the hook was placed.
+		 * Since the trampoline makes changes to rsp before calling the proxy function this correction has to be done.
+		 * The shellcode could be modified to avoid the need of this function. All other attempts made so far had their own caveats.
+		 */
+		int64_t GetRspAtHookAddress()
+		{
+			//TODO random constant.. this compensates for all the pushed made the the stack before the hook function is called.
+			return rsp + 0x180;
+		}
+
+		/**
+		 * Prints the values of all registers
+		 */
 		void PrintRegister()
 		{
 			printf("register:\n\trsp %llx\n\trax %llx\n\trcx %llx\n\trdx %llx\n\trbx %llx\n\trbp %llx\n\trsi %llx\n\trdi %llx\n\tr8 %llx\n\tr9 %llx\n\tr10 %llx\n\tr11 %llx\n\tr12 %llx\n\tr13 %llx\n\tr14 %llx\n\tr15 %llx\n",
