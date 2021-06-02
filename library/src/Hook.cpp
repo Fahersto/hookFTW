@@ -275,7 +275,7 @@ namespace hookftw
 		}*/
 
 		Decoder decoder;
-		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, requiredBytes);
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, requiredBytes, trampoline);
 
 		//2. Get trampoline stub
 		//3. Add rellocated instructions to trampoline

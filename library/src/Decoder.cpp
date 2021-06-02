@@ -8,6 +8,11 @@
 namespace hookftw
 {
 	void* Decoder::_zydisDecoder = nullptr;
+
+	bool IsCallInstruction(ZydisDecodedInstruction& instruction)
+	{
+		return instruction.mnemonic == ZYDIS_MNEMONIC_CALL;
+	}
 	
 	bool IsBranchInstruction(ZydisDecodedInstruction& instruction)
 	{
@@ -49,7 +54,6 @@ namespace hookftw
 		//https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
 		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM && instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5;
 	}
-
 
 	void RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
@@ -100,19 +104,28 @@ namespace hookftw
 		printf("[Info] - Decoder relocated a branch instruction\n");
 	}
 
-	void RelocateRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
+	void RelocateRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
+		int8_t* tmpBuffer = (int8_t*)malloc(instruction.length);
+		
+		//copy original instruction
+		memcpy(tmpBuffer, instructionAddress, instruction.length);
+		
+		//calculate the absolute address of the rip-relative address
 		const int8_t* absoluteAddress = instructionAddress + instruction.length + instruction.raw.disp.value;
 
-		ZyanU64 originalJumpTarget;
-		ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+		const int32_t relocatedRelativeAddress = absoluteAddress - relocatedInstructionAddress - instruction.length;
 
-		//the displacement is always 32byte displacement. (instruction.instruction.raw.disp.size
-
+		//write relocated realtive address to the relocated instrucions displacement
+		*(int32_t*)&tmpBuffer[instruction.raw.disp.offset] = relocatedRelativeAddress;
+		
 		//TODO check if we could sucessfully rellocate (if trampoline is too far away rel32 may not be enough)
 
-		printf("[Info] - Decoder rellocated a rip-relative memory instruction NOT IMPLEMENTED\n");
-		printf("\tabsoluteAddress %p, originalJumpTarget %llx\n", absoluteAddress, originalJumpTarget);
+		//add bytes of relocated instructions to relocated instuctions
+		rellocatedbytes.insert(rellocatedbytes.end(), tmpBuffer, tmpBuffer + instruction.length);
+
+		free(tmpBuffer);
+		printf("[Info] - Decoder rellocated a rip-relative memory instruction\n");
 	}
 
 	Decoder::Decoder()
@@ -135,18 +148,27 @@ namespace hookftw
 	 * 32bit:
 		- call
 		- jcc
-		- loopne
-		- XBEGIN
+		- loopcc
+		- XBEGIN //not handled
 
 	   64bit:
 		-call
 		- jcc
-		- loopne
-		- XBEGIN
-		- instructions that use ModR / M addressing(rip relative)
+		- loopcc
+		- XBEGIN //not handled
+		- instructions that use ModR/M addressing (rip relative)
 	 */
-	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length)
+	/**
+	 * Creates a vector containing rellocated instructions. These instructions are not yet written to the targetAddress.
+	 * We need need to know the targetAddress to relocate rip-relative instructions.
+	 * We do generate a vector<int8_t> of relocated instructions instead of writing them directly to the target address
+	 * to first check if the entire relocation succeeds before writing to the target
+	 */
+	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress)
 	{
+		//TODO random constant at random location. This constant changes if changes are made to the trampoline..
+		const int offsetOfRelocatedBytesinTrampoline = 455;
+		int8_t* relocationAddress = targetAddress + offsetOfRelocatedBytesinTrampoline;
 		std::vector<int8_t> relocatedbytes;
 
 		int amountOfBytesRellocated = 0;
@@ -163,7 +185,7 @@ namespace hookftw
 				printf("ERROR: decoder could not decode instruction\n");
 				return std::vector<int8_t>();
 			}
-			if (instruction.mnemonic == ZYDIS_MNEMONIC_CALL) 
+			if (IsCallInstruction(instruction))
 			{
 				//handle relocation of call instructions
 				RelocateCallInstruction(instruction, currentAddress, relocatedbytes);
@@ -176,7 +198,7 @@ namespace hookftw
 			else if (IsRipRelativeMemoryInstruction(instruction))	
 			{
 				//handle relocation of rip-relative memory addresses (x64 only)
-				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, relocatedbytes);
+				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, relocationAddress + relocatedbytes.size(), relocatedbytes);
 			}
 			else if (instruction.mnemonic == ZYDIS_MNEMONIC_XBEGIN)
 			{
@@ -216,6 +238,56 @@ namespace hookftw
 			byteCount += instruction.length;
 		}
 		return byteCount;
+	}
+
+	int8_t* Decoder::FindNextRelativeInstructionOfType(int8_t* startAddress, RelativeInstruction type, int length)
+	{
+		int offset = 0;
+		ZyanStatus decodeResult = ZYAN_STATUS_FAILED;
+		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
+		do
+		{
+			ZydisDecodedInstruction instruction;
+			int8_t* currentAddress = startAddress + offset;
+
+			decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			if (decodeResult != ZYAN_STATUS_SUCCESS)
+			{
+				printf("ERROR: decoder could not decode instruction\n");
+				offset += instruction.length;
+				continue;
+			}
+
+			bool typeFound = false;
+			switch (type)
+			{
+			case RelativeInstruction::CALL:
+				if(IsCallInstruction(instruction))
+				{
+					typeFound = true;
+				}
+				break;
+			case RelativeInstruction::BRANCH:
+				if (IsBranchInstruction(instruction))
+				{
+					typeFound = true;
+				}
+				break;
+			case RelativeInstruction::RIP_RELATIV:
+				if (IsRipRelativeMemoryInstruction(instruction))
+				{
+					typeFound = true;
+				}
+				break;
+			}
+			if (typeFound)
+			{
+				return currentAddress;
+			}
+			offset += instruction.length;
+		} while (decodeResult == ZYAN_STATUS_SUCCESS || offset < length);
+		printf("[Warning] - decoder couln't find relative instruction of desired type in %d bytes\n", offset);
+		return nullptr;
 	}
 
 	/**

@@ -58,8 +58,12 @@ namespace hookftw
 		const int saveRspAddress = 196;
 		const int restoreRspAddress = 230;
 
+		//5 bytes for jmp rel32
 		//14 bytes are required to place JMP[rip+0x] 0x1122334455667788
-		assert(hookLength >= 5); //TODO 14 if we want more than rel32
+		//TODO flag for when we need 14 bytes (because trampoline out of range)
+		const int bytesRequiredForPlacingHook = 5;
+		
+		assert(hookLength >= bytesRequiredForPlacingHook); 
 
 		
 		//1. save xmm registers
@@ -183,8 +187,6 @@ namespace hookftw
 			0x9D														//popfq
 		};
 		
-		
-
 		//used to the controll flow after the hook can be changed (for example skip oroginal call)
 		int8_t controllFlowStub[controlFlowStubLength] = {
 			0x48, 0xA3, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs ds:0x1122334455667788,rax
@@ -251,7 +253,7 @@ namespace hookftw
 		*(uint32_t*)(&sourceAddress[1]) = (int32_t)((int64_t)trampoline_ - (int64_t)sourceAddress - 5);
 
 		//NOP left over bytes
-		for (int i = 14; i < hookLength; i++)
+		for (int i = bytesRequiredForPlacingHook; i < hookLength; i++)
 		{
 			sourceAddress[i] = 0x90;
 		}
@@ -519,13 +521,11 @@ void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int ho
 		//TODO get trampoline_ here (make sure +-2bg range from hook and in bounds
 		AllocateTrampoline(sourceAddress);
 
-		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf);
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_);
 		if (relocatedBytes.empty())
 		{
 			printf("[Error] - FuncStartHook - Relocation of bytes replaced by hook failed\n");
 		}
-
-		
 		
 		//2. Get trampoline_ stub
 		//3. Add rellocated instructions to trampoline_

@@ -1,11 +1,11 @@
 #include <Windows.h>
 
 
-#include <Disassembler.h>
-#include <Hook.h>
+
 #include <FuncStartHook.h>
 #include <Logger.h>
 #include <DbgSymbols.h>
+#include <Decoder.h>
 
 
 int answerToLife(int x)
@@ -22,17 +22,30 @@ DWORD __stdcall Run(LPVOID hModule)
 
 	//Offsets in victim.exe x32
 	int8_t* baseAddressOfProcess = (int8_t*)GetModuleHandle(NULL);
-	int8_t* calcFunctionStart = baseAddressOfProcess + 0x13F0;
+	int8_t* calcFunctionStart = baseAddressOfProcess + 0x13C0;
 	int8_t* calcFunctionRelocateCall = baseAddressOfProcess + 0x13FC;
+	int8_t* calcFunctionRelocateJnl = baseAddressOfProcess + 0x13E2;
+	int8_t* relocateRipRelative = baseAddressOfProcess + 0x14a0;
 
-	//Offsets in victim.exe x64
-	int8_t* calcFunctionStart_x64 = baseAddressOfProcess + 0x13A0;
 
 	int8_t* answerToLifeStart = (int8_t*)GetModuleHandleA("example.dll") + 0x1ed0;
 
+	hookftw::Decoder decoder;
+	int8_t* relativeInstuction = decoder.FindNextRelativeInstructionOfType(baseAddressOfProcess, hookftw::RelativeInstruction::RIP_RELATIV, 0x2000);
+	
 	hookftw::DbgSymbols dbgSymbols;
 	//dbgSymbols.EnumerateSymbols();
 
+	hookftw::FuncStartHook funcStartHook(
+		relocateRipRelative,
+		[](hookftw::context* ctx) {
+		printf("Inside FuncStartHook\n");
+		//ctx->ChangeControllFlow(123213);
+		//ctx->SkipOriginalFunction();
+		//ctx->registers.rax = ctx->CallOriginal<int>(2);
+	}
+	);
+	
 	/*
 	hookftw::FuncStartHook prologHook(
 		dbgSymbols.GetAddressBySymbolName("calculation"),
@@ -74,7 +87,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	{
 		if (GetAsyncKeyState(VK_F1) & 0x1)
 		{
-			prologHook.Unhook();
+			funcStartHook.Unhook();
 			break;
 		}
 		if (GetAsyncKeyState(VK_F2) & 0x1)
