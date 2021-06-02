@@ -178,6 +178,15 @@ namespace hookftw
 				//handle relocation of rip-relative memory addresses (x64 only)
 				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, relocatedbytes);
 			}
+			else if (instruction.mnemonic == ZYDIS_MNEMONIC_XBEGIN)
+			{
+				//XBEGIN causes undefined opcode exception on most computers as intel removed it form the underlying microcode architecture due to security concerns(Zombieload 2 Attack)
+				//and even physically removed support for it on never processors
+				//additionally windows (and linux) allow for disabling tsx support
+				//we expect to never encounter this instruction
+				printf("[ERROR]: decoder encountered XBEGIN instruction which is a relative but unhandled instruction!\n"); 
+				return std::vector<int8_t>();
+			}
 			else
 			{
 				//if its just copy the original bytes
