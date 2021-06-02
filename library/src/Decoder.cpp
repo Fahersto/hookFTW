@@ -57,6 +57,8 @@ namespace hookftw
 
 	void RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
+		//TODO check if all types of calls can be relocated
+		//TODO there are for example call instructions that make use of  the ModRM byte
 		ZyanU64 originalJumpTarget;
 		ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 
@@ -185,6 +187,7 @@ namespace hookftw
 				printf("ERROR: decoder could not decode instruction\n");
 				return std::vector<int8_t>();
 			}
+			//the order here matters. We start with most specific relocations. There are for example call instructions that use the ModRM byte and therefore are also rip-relative memory addresses
 			if (IsCallInstruction(instruction))
 			{
 				//handle relocation of call instructions
@@ -195,7 +198,7 @@ namespace hookftw
 				//handle relocation of branch instructions (jcc, loopcc)
 				RelocateBranchInstruction(instruction, currentAddress, relocatedbytes);
 			}
-			else if (IsRipRelativeMemoryInstruction(instruction))	
+			else if (IsRipRelativeMemoryInstruction(instruction))	 
 			{
 				//handle relocation of rip-relative memory addresses (x64 only)
 				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, relocationAddress + relocatedbytes.size(), relocatedbytes);
@@ -240,8 +243,9 @@ namespace hookftw
 		return byteCount;
 	}
 
-	int8_t* Decoder::FindNextRelativeInstructionOfType(int8_t* startAddress, RelativeInstruction type, int length)
+	std::vector<int8_t*> Decoder::FindRelativeInstructionsOfType(int8_t* startAddress, RelativeInstruction type, int length)
 	{
+		std::vector<int8_t*> foundInstructions;
 		int offset = 0;
 		ZyanStatus decodeResult = ZYAN_STATUS_FAILED;
 		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
@@ -282,12 +286,12 @@ namespace hookftw
 			}
 			if (typeFound)
 			{
-				return currentAddress;
+				foundInstructions.push_back(currentAddress);
 			}
 			offset += instruction.length;
 		} while (decodeResult == ZYAN_STATUS_SUCCESS || offset < length);
 		printf("[Warning] - decoder couln't find relative instruction of desired type in %d bytes\n", offset);
-		return nullptr;
+		return foundInstructions;
 	}
 
 	/**

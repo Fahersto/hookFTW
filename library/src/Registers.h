@@ -47,6 +47,12 @@ struct registers
 	__m128 xmm13;
 	__m128 xmm14;
 	__m128 xmm15;
+
+	void print()
+	{
+		printf("register:\n\trsp %llx\n\trax %llx\n\trcx %llx\n\trdx %llx\n\trbx %llx\n\trbp %llx\n\trsi %llx\n\trdi %llx\n\tr8 %llx\n\tr9 %llx\n\tr10 %llx\n\tr11 %llx\n\tr12 %llx\n\tr13 %llx\n\tr14 %llx\n\tr15 %llx\n",
+			rsp, rax, rcx, rdx, rbx, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15);
+	}
 };
 #elif _WIN32
 	/**

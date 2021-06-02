@@ -27,22 +27,30 @@ DWORD __stdcall Run(LPVOID hModule)
 	int8_t* calcFunctionRelocateJnl = baseAddressOfProcess + 0x13E2;
 	int8_t* relocateRipRelative = baseAddressOfProcess + 0x14a0;
 
+	int8_t* ripRelCmp = baseAddressOfProcess + 0x14a0;
 
 	int8_t* answerToLifeStart = (int8_t*)GetModuleHandleA("example.dll") + 0x1ed0;
 
 	hookftw::Decoder decoder;
-	int8_t* relativeInstuction = decoder.FindNextRelativeInstructionOfType(baseAddressOfProcess, hookftw::RelativeInstruction::RIP_RELATIV, 0x2000);
+	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::RIP_RELATIV, 0x2000);
+
+	printf("[Info] relative instructions\n");
+	for (auto& instruction : relativeInstructions)
+	{
+		printf("\t%p\n", instruction);
+	}
 	
 	hookftw::DbgSymbols dbgSymbols;
 	//dbgSymbols.EnumerateSymbols();
 
 	hookftw::FuncStartHook funcStartHook(
-		relocateRipRelative,
+		calcFunctionStart,
 		[](hookftw::context* ctx) {
-		printf("Inside FuncStartHook\n");
-		//ctx->ChangeControllFlow(123213);
-		//ctx->SkipOriginalFunction();
-		//ctx->registers.rax = ctx->CallOriginal<int>(2);
+			printf("Inside FuncStartHook\n");
+			ctx->PrintRegister();
+			//ctx->ChangeControllFlow(123213);
+			//ctx->SkipOriginalFunction();
+			//ctx->registers.rax = ctx->CallOriginal<int>(2);
 	}
 	);
 	

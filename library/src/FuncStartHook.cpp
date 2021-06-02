@@ -43,20 +43,24 @@ namespace hookftw
 				printf("[Warning] - FuncStartHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
 			}
 		}
-		printf("[Info] - FuncStartHook - Allocating the trampoline took %d iterations\n", iterations);
+		printf("[Info] - FuncStartHook - Allocated trampoline at %p (using %d attempts)\n", trampoline_, iterations);
 	}
 
 #if _WIN64
 	void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void proxy(context* ctx))
 	{
-		const int stubLength = 422;
+		const int stubLength = 419;
 		const int controlFlowStubLength = 33;
-		const int proxyFunctionAddressIndex = 218;
+		const int proxyFunctionAddressIndex = 215;
+
+		//compensates for all the changes to the stack before the proxy function is called
+		//this way we get the rsp value time 
+		const int rspCompenstaion = 384;
 
 		//const int saveRaxAddress = 180;
-		const int thisAddress = 180;
-		const int saveRspAddress = 196;
-		const int restoreRspAddress = 230;
+		const int thisAddress = 179;
+		const int saveRspAddress = 193;
+		const int restoreRspAddress = 227;
 
 		//5 bytes for jmp rel32
 		//14 bytes are required to place JMP[rip+0x] 0x1122334455667788
@@ -64,7 +68,6 @@ namespace hookftw
 		const int bytesRequiredForPlacingHook = 5;
 		
 		assert(hookLength >= bytesRequiredForPlacingHook); 
-
 		
 		//1. save xmm registers
 		//2. save general purpose registers
@@ -122,12 +125,14 @@ namespace hookftw
 			0x51,														//push   rcx
 			0x50,														//push   rax
 			0x54,														//push	 rsp
-			0x54,														//push	 rsp
+
+			//todo account for all changes to rsp the trampoline already made
+
+			
 			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
 			0x50,														//push	 rax
-			//0x48, 0x89, 0xE1,											//mov    rcx,rsp					//make first argument point at a
-			0x48, 0x8D, 0x4C, 0x24, 0x0 ,								//lea    rcx,[rsp - 0x8] make first argument point at a
-			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov	 rax, addressOfLocal			//save rsp
+			0x48, 0x89, 0xE1,											//mov    rcx, rsp					//make first argument point at a
+			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov	 rax, addressOfLocal		//save rsp because we don't know if we substract bytes to get the correct alignment before the call
 			0x48, 0x89, 0x20,											//mov	 [rax], rsp
 			0x48, 0x0F, 0xBA, 0xF4, 0x03,								//btr	 rsp, 3						(align stack to 16 bytes before call)
 			0x48, 0x83, 0xEC, 0x20,										//sub    rsp,0x20					(allocate shadow space)
@@ -135,7 +140,7 @@ namespace hookftw
 			0xFF, 0xD0,													//call   rax						(call proxy function)
 			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov rax, addressOforiginalRspLocalVariable. We restore rsp like this because we don't know if stack was aligned to 16 byte beforehand
 			0x48, 0x8B, 0x20,											//mov rsp, [rax]
-			0x48, 0x83, 0xC4, 0x10,										//add    rsp,0x10	
+			0x48, 0x83, 0xC4, 0x8,										//add    rsp, 0x8	//compensate for the "push rax" before saving rsp
 			0x5c,														//pop	 rsp
 			0x58,														//pop    rax
 			0x59,														//pop    rcx
@@ -211,7 +216,6 @@ namespace hookftw
 
 		//insert address of member variable to save RAX
 		*(int64_t*)&controllFlowStub[24] = (int64_t)&savedRax_;
-
 
 		//copy stub to trampoline_
 		memcpy(trampoline_, stub, stubLength);

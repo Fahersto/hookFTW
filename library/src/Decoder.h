@@ -24,7 +24,7 @@ namespace hookftw
 		Decoder();
 	
 		int GetLengthOfInstructions(int8_t* sourceAddress, int length);
-		int8_t* FindNextRelativeInstructionOfType(int8_t* startAddress, RelativeInstruction type, int length);
+		std::vector<int8_t*> FindRelativeInstructionsOfType(int8_t* startAddress, RelativeInstruction type, int length);
 		bool CalculateBoundsOfRelativeAddresses(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress);
 		std::vector<int8_t> Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress);
 	};
