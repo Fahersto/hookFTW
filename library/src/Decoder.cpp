@@ -145,9 +145,8 @@ namespace hookftw
 		- XBEGIN
 		- instructions that use ModR / M addressing(rip relative)
 	 */
-	std::vector<int8_t> Decoder::Relocate(int8_t* source, int length)
+	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length)
 	{
-		const int MAXIMUM_INSTRUCTION_LENGTH = 15;
 		std::vector<int8_t> relocatedbytes;
 
 		int amountOfBytesRellocated = 0;
@@ -156,9 +155,9 @@ namespace hookftw
 		while (amountOfBytesRellocated < length)
 		{
 			ZydisDecodedInstruction instruction;
-			int8_t* currentAddres = source + amountOfBytesRellocated;
+			int8_t* currentAddress = sourceAddress + amountOfBytesRellocated;
 			
-			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddres, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
 				printf("ERROR: decoder could not decode instruction\n");
@@ -167,25 +166,97 @@ namespace hookftw
 			if (instruction.mnemonic == ZYDIS_MNEMONIC_CALL) 
 			{
 				//handle relocation of call instructions
-				RelocateCallInstruction(instruction, currentAddres, relocatedbytes);
+				RelocateCallInstruction(instruction, currentAddress, relocatedbytes);
 			}
 			else if (IsBranchInstruction(instruction))	
 			{
 				//handle relocation of branch instructions (jcc, loopcc)
-				RelocateBranchInstruction(instruction, currentAddres, relocatedbytes);
+				RelocateBranchInstruction(instruction, currentAddress, relocatedbytes);
 			}
 			else if (IsRipRelativeMemoryInstruction(instruction))	
 			{
 				//handle relocation of rip-relative memory addresses (x64 only)
-				RelocateRipRelativeMemoryInstruction(instruction, currentAddres, relocatedbytes);
+				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, relocatedbytes);
 			}
 			else
 			{
 				//if its just copy the original bytes
-				relocatedbytes.insert(relocatedbytes.end(), currentAddres, currentAddres + instruction.length);
+				relocatedbytes.insert(relocatedbytes.end(), currentAddress, currentAddress + instruction.length);
 			}
 			amountOfBytesRellocated += instruction.length;
 		}
 		return relocatedbytes;
+	}
+
+	int Decoder::GetLengthOfInstructions(int8_t* sourceAddress, int length)
+	{
+		int byteCount = 0;
+
+		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
+		while (byteCount < length)
+		{
+			ZydisDecodedInstruction instruction;
+			int8_t* currentAddress = sourceAddress + byteCount;
+
+			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			if (decodeResult != ZYAN_STATUS_SUCCESS)
+			{
+				printf("ERROR: decoder could not decode instruction\n");
+				return 0;
+			}
+			byteCount += instruction.length;
+		}
+		return byteCount;
+	}
+
+	/**
+	 * Calculates the lowest and highest realtive accesses. These have to be taken into consideration when creating the trampoline
+	 * as we can only relocate rip-relative intructions if they can access their original target with "relocated rip" + rel32
+	 */
+	bool Decoder::CalculateBoundsOfRelativeAddresses(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress)
+	{
+		int byteCount = 0;
+		ZyanU64 tmpLowestAddress = 0xffffffffffffffff;
+		ZyanU64 tmpHighestAddress = 0;
+		
+		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
+		while (byteCount < length)
+		{
+			ZydisDecodedInstruction instruction;
+			int8_t* currentAddress = sourceAddress + byteCount;
+
+			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			if (decodeResult != ZYAN_STATUS_SUCCESS)
+			{
+				printf("ERROR: decoder could not decode instruction\n");
+				return false;
+			}
+
+			//skip non relative instructions
+			if (!(instruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE))
+			{
+				byteCount += instruction.length;
+				continue;
+			}
+
+			//calculate the absolute target address of the relative instruction
+			ZyanU64 absoluteTargetAddress;
+			ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)currentAddress, &absoluteTargetAddress);
+
+			if (absoluteTargetAddress < tmpLowestAddress)
+			{
+				tmpLowestAddress = absoluteTargetAddress;
+			}
+
+			if (absoluteTargetAddress > tmpHighestAddress)
+			{
+				tmpHighestAddress = absoluteTargetAddress;
+			}
+			
+			byteCount += instruction.length;
+		}
+		*lowestAddress = tmpLowestAddress;
+		*highestAddress = tmpHighestAddress;
+		return true;
 	}
 }

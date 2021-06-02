@@ -23,6 +23,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	//Offsets in victim.exe x32
 	int8_t* baseAddressOfProcess = (int8_t*)GetModuleHandle(NULL);
 	int8_t* calcFunctionStart = baseAddressOfProcess + 0x13F0;
+	int8_t* calcFunctionRelocateCall = baseAddressOfProcess + 0x13FC;
 
 	//Offsets in victim.exe x64
 	int8_t* calcFunctionStart_x64 = baseAddressOfProcess + 0x13A0;
@@ -31,9 +32,10 @@ DWORD __stdcall Run(LPVOID hModule)
 
 	hookftw::DbgSymbols dbgSymbols;
 	//dbgSymbols.EnumerateSymbols();
-	
+
+	/*
 	hookftw::FuncStartHook prologHook(
-		dbgSymbols.GetAddressBySymbolName("assignTest"),
+		dbgSymbols.GetAddressBySymbolName("calculation"),
 		[](hookftw::context* ctx) {
 			printf("Inside FuncStartHook\n");
 			//ctx->ChangeControllFlow(123213);
@@ -41,6 +43,7 @@ DWORD __stdcall Run(LPVOID hModule)
 			ctx->registers.rax = ctx->CallOriginal<int>(2);
 		}
 	);
+	*/
 
 	/*
 	
@@ -94,7 +97,7 @@ DWORD __stdcall Run(LPVOID hModule)
 DWORD __stdcall Run(LPVOID hModule)
 {
 	//Create debugging console
-	hookftw::Logger::OpenDebuggingConsole("hookftw - x64 Debug");
+	//hookftw::Logger::OpenDebuggingConsole("hookftw - x64 Debug");
 
 	//Offsets in victim.exe
 	int8_t* baseAddressOfProcess = (int8_t*)GetModuleHandle(NULL);
@@ -111,12 +114,22 @@ DWORD __stdcall Run(LPVOID hModule)
 	hookftw::Disassembler disassembler;
 	//disassembler.Analyse((int8_t*)GetModuleHandle(NULL) + 0x149, 0x6000);
 
-	hookftw::Hook hook(
+	
+	hookftw::FuncStartHook assignTestHook(
 		dbgSymbols.GetAddressBySymbolName("assignTest"),
-		[](hookftw::registers* registers) {
-		printf("Inside the hooked function\n");
+		[](hookftw::context* ctx) {
+			printf("Inside assignTestHook\n");
+		}
+	);
+
+	/*
+	hookftw::FuncStartHook calculationHook(
+		dbgSymbols.GetAddressBySymbolName("calculation"),
+		[](hookftw::context* ctx) {
+		printf("Inside calculationHook\n");
 	}
 	);
+	*/
 
 	/*
 	hookftw::FuncStartHook prologHook(
@@ -134,7 +147,8 @@ DWORD __stdcall Run(LPVOID hModule)
 	{
 		if (GetAsyncKeyState(VK_F1) & 0x1)
 		{
-			hook.Unhook();
+			assignTestHook.Unhook();
+			//calculationHook.Unhook();
 			break;
 		}
 		if (GetAsyncKeyState(VK_F4) & 0x8000)
@@ -144,7 +158,7 @@ DWORD __stdcall Run(LPVOID hModule)
 		Sleep(1);
 	}
 
-	hookftw::Logger::CloseDebuggingConsole();
+	//hookftw::Logger::CloseDebuggingConsole();
 	FreeLibraryAndExitThread(static_cast<HMODULE>(hModule), 0);
 	return TRUE;
 }

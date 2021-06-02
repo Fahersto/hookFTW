@@ -20,27 +20,28 @@ namespace hookftw
 	class FuncStartHook
 	{
 		//bytes overwritten by placing the detour
-		int8_t* originalBytes;
+		int8_t* original_bytes_ = nullptr;
 
 		//location where hook is placed
-		int8_t* sourceAddress;
+		int8_t* sourceAddress_ = nullptr;
 
 		//contrains overwritten instructions
-		int8_t* trampoline;
+		int8_t* trampoline_ = nullptr;
 
-		//contains the address after the trampoline stub. starts with the rellocated origin instruction.
-		int8_t* addressToCallFunctionWithoutHook;
+		//contains the address after the trampoline_ stub. starts with the rellocated origin instruction.
+		int8_t* addressToCallFunctionWithoutHook_= nullptr;
 
-		//contains the address to which the trampoline returns. This can be used to skip the original call for example.
-		int64_t returnAddressFromTrampoline;
+		//contains the address to which the trampoline_ returns. This can be used to skip the original call for example.
+		int64_t returnAddressFromTrampoline_ = NULL;
 
 		//number of bytes to overwrite (don't cut instructions in half)
-		int hookLength;
+		int hookLength_ = NULL;
 
 		//rax is used to change the location to jump back
-		int64_t savedRax;
-		int64_t originalRsp;
-		
+		int64_t savedRax_ = NULL;
+		int64_t originalRsp_ = NULL;
+
+		void AllocateTrampoline(int8_t* hookAddress);
 		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void proxy(context* ctx));
 
 		
@@ -71,7 +72,7 @@ namespace hookftw
 		 */
 		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
 		{
-			hook->ChangeReturn(0x1337);
+			hook->ChangeReturn(addressToReturnToAfterHook);
 		}
 
 		void SkipOriginalFunction()
