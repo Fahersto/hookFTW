@@ -26,13 +26,14 @@ DWORD __stdcall Run(LPVOID hModule)
 	int8_t* calcFunctionRelocateCall = baseAddressOfProcess + 0x13FC;
 	int8_t* calcFunctionRelocateJnl = baseAddressOfProcess + 0x13E2;
 	int8_t* relocateRipRelative = baseAddressOfProcess + 0x14a0;
-
+	int8_t* relocateRipRelaitveCall = baseAddressOfProcess + 0x159b; //call that directly references the rip register (ff 15 rel32) instead of being relative to the position of the next instruction (e8 rel32)
 	int8_t* ripRelCmp = baseAddressOfProcess + 0x14a0;
 
 	int8_t* answerToLifeStart = (int8_t*)GetModuleHandleA("example.dll") + 0x1ed0;
 
+	
 	hookftw::Decoder decoder;
-	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::RIP_RELATIV, 0x2000);
+	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
 
 	printf("[Info] relative instructions\n");
 	for (auto& instruction : relativeInstructions)
@@ -40,18 +41,19 @@ DWORD __stdcall Run(LPVOID hModule)
 		printf("\t%p\n", instruction);
 	}
 	
+	
 	hookftw::DbgSymbols dbgSymbols;
 	//dbgSymbols.EnumerateSymbols();
 
 	hookftw::FuncStartHook funcStartHook(
-		calcFunctionStart,
+		relocateRipRelaitveCall,
 		[](hookftw::context* ctx) {
 			printf("Inside FuncStartHook\n");
 			//ctx->PrintRegister();
 			//printf("rsp at hook address: %llx\n", ctx->GetRspAtHookAddress());
 			//ctx->ChangeControllFlow(123213);
-			ctx->SkipOriginalFunction();
-			ctx->rax = ctx->CallOriginal<int>(2);
+			//ctx->SkipOriginalFunction();
+			//ctx->rax = ctx->CallOriginal<int>(2);
 	}
 	);
 	

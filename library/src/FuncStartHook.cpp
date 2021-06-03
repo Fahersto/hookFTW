@@ -510,13 +510,15 @@ void FuncStartHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int ho
 
 		//TODO issue trampoline_ is not wihthing range.. because we dont even try it to allocate it in range
 		//TODO check fir rip relative instructions if we can reach original targets with rel32
-		int64_t lowestAddress = 0;
-		int64_t hightestAddress = 0;
-		if(!decoder.CalculateBoundsOfRelativeAddresses(sourceAddress, lengthWithoutCuttingInstructionsInHalf, &lowestAddress, &hightestAddress))
+		int64_t lowestRelativeAddress = 0;
+		int64_t hightestRelativeAddress = 0;
+		if(!decoder.CalculateBoundsOfRelativeAddresses(sourceAddress, lengthWithoutCuttingInstructionsInHalf, &lowestRelativeAddress, &hightestRelativeAddress))
 		{
 			printf("[Error] - FuncStartHook - Could not calculate bounds of relate instructions replaced by hook!\n");
 			return;
 		}
+
+		printf("[Info] - FuncStartHook - bounds of relative addresses accessed [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
 
 		//TODO get trampoline_ here (make sure +-2bg range from hook and in bounds
 		AllocateTrampoline(sourceAddress);

@@ -52,16 +52,36 @@ namespace hookftw
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
 		//https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
-		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM && instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5;
+		//Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte 
+		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM && 
+			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table
 	}
 
 	void RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
 		//TODO check if all types of calls can be relocated
 		//TODO there are for example call instructions that make use of  the ModRM byte
-		ZyanU64 originalJumpTarget;
-		ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+		//TODO Call gate is a problem for now
+		//can we relocate call rax+18! YES such an sturction shoudl jstu be copied!
 
+		//for e8 call use ZydisCalcAbsoluteAddress
+		//copy all other calls with the expection of
+		//	- Mod 00, RM 101
+		//  - these only occur with digit /2 & /3, so mod/rm values of 0x15 & 0x1D
+		//		- from looking at the table these always seems to derefernce the address
+		ZyanU64 originalJumpTarget;
+		if (instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM)
+		{
+			//FF /3 CALL m16:32
+			if (instruction.raw.modrm.mod == 0)
+			{
+				ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+			}
+		}
+		else
+		{
+			ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+		}
 		const int rellocatedCallInstructionsLength = 12;
 		int8_t rellocatedCallInstructions[rellocatedCallInstructionsLength] = {
 			0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,			//movabs rax, 0x1122334455667788
@@ -301,8 +321,8 @@ namespace hookftw
 	bool Decoder::CalculateBoundsOfRelativeAddresses(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress)
 	{
 		int byteCount = 0;
-		ZyanU64 tmpLowestAddress = 0xffffffffffffffff;
-		ZyanU64 tmpHighestAddress = 0;
+		uint64_t tmpLowestAddress = 0xffffffffffffffff;
+		uint64_t tmpHighestAddress = 0;
 		
 		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
 		while (byteCount < length)
