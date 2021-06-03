@@ -10,7 +10,7 @@
 
 namespace hookftw
 {
-	void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> rellocatedBytes, void __fastcall proxy(registers* registers))
+	void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> rellocatedBytes, void proxy(registers* registers))
 	{
 		const int stubLength = 404;
 		const int stubJumpBackLength = 14;
@@ -215,7 +215,7 @@ namespace hookftw
 	 * @param sourceAddress Address to apply the hook to
 	 * @param proxy Function callback to be executed when hook is called
 	 */
-	Hook::Hook(int8_t* sourceAddress, void __fastcall proxy(registers* regs))
+	Hook::Hook(int8_t* sourceAddress, void proxy(registers* regs))
 		: originalBytes(nullptr), sourceAddress(nullptr), trampoline(nullptr), hookLength(0)
 	{
 		int requiredBytes = 5;
@@ -293,7 +293,7 @@ namespace hookftw
 	* @param sourceAddress Address to apply the hook to
 	* @param proxy Function callback to be executed when hook is called
 	*/
-	Hook::Hook(int8_t* sourceAddress, void __fastcall proxy(registers* regs))
+	Hook::Hook(int8_t* sourceAddress, void proxy(registers* regs))
 		: originalBytes(nullptr), sourceAddress(nullptr), trampoline(nullptr), hookLength(0)
 	{
 		const int stubLength = 151;

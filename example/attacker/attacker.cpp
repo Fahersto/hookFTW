@@ -126,46 +126,25 @@ DWORD __stdcall Run(LPVOID hModule)
 	//Offsets in victim.exe
 	int8_t* baseAddressOfProcess = (int8_t*)GetModuleHandle(NULL);
 	int8_t* calcFunctionStart = baseAddressOfProcess + 0x29A0;
-	int8_t* withJNL = baseAddressOfProcess + 0x29BE;
-	int8_t* includesCall = baseAddressOfProcess + 0x29D9;
-	int8_t* Loopne = baseAddressOfProcess + 0x91C4;
-	int8_t* ripRel = baseAddressOfProcess + 0x27fd;
+
 
 	//Load debug symbols
 	hookftw::DbgSymbols dbgSymbols;
 
 
-	hookftw::Disassembler disassembler;
-	//disassembler.Analyse((int8_t*)GetModuleHandle(NULL) + 0x149, 0x6000);
+	hookftw::Decoder decoder;
+	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
 
 	
 	hookftw::FuncStartHook assignTestHook(
-		dbgSymbols.GetAddressBySymbolName("assignTest"),
-		[](hookftw::context* ctx) {
-			printf("Inside assignTestHook\n");
-		}
-	);
-
-	/*
-	hookftw::FuncStartHook calculationHook(
 		dbgSymbols.GetAddressBySymbolName("calculation"),
 		[](hookftw::context* ctx) {
-		printf("Inside calculationHook\n");
-	}
-	);
-	*/
-
-	/*
-	hookftw::FuncStartHook prologHook(
-		functionStart,
-		[](hookftw::context* ctx){
-			//ctx->SkipCall();
-			printf("Inside FuncStartHook\n");
-			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(2));
-			//printf("CallOriginal %d\n", ctx->CallOriginal<int>(3));
+			//ctx->PrintRegister();
+			//printf("esp at hook address: %llx\n", ctx->GetEspAtHookAddress());
+			ctx->SkipOriginalFunction();
+			ctx->eax = ctx->CallOriginal<int>(1337);
 		}
 	);
-	*/
 
 	while (true)
 	{

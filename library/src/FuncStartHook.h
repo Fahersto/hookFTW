@@ -3,6 +3,7 @@
 #include <vector>
 #include <Windows.h>
 #include <xmmintrin.h>
+#include <functional>
 
 #include "Registers.h"
 
@@ -20,7 +21,7 @@ namespace hookftw
 	class FuncStartHook
 	{
 		//bytes overwritten by placing the detour
-		int8_t* original_bytes_ = nullptr;
+		int8_t* originalBytes_ = nullptr;
 
 		//location where hook is placed
 		int8_t* sourceAddress_ = nullptr;
@@ -42,12 +43,12 @@ namespace hookftw
 		int64_t originalRsp_ = NULL;
 
 		void AllocateTrampoline(int8_t* hookAddress);
-		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void proxy(context* ctx));
+		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx));
 
 		
 	public:
 		int8_t* GetCallableVersionOfOriginal();
-		FuncStartHook(int8_t* sourceAddress, void proxy(context* ctx));
+		FuncStartHook(int8_t* sourceAddress, void __fastcall proxy(context* ctx));
 		
 		void Unhook();
 
@@ -62,6 +63,7 @@ namespace hookftw
 	 * 
 	 * Context of the hooked function.
 	 */
+	#if _WIN64
 	struct context
 	{
 		FuncStartHook* hook;
@@ -145,4 +147,73 @@ namespace hookftw
 		}
 
 	};
+	#elif _WIN32
+	struct context
+	{
+		FuncStartHook* hook;
+		//registers registers; we do not use the struct here because it is aligned at the start
+		int32_t esp;
+		int32_t eax;
+		int32_t ecx;
+		int32_t edx;
+		int32_t ebx;
+		int32_t ebp;
+		int32_t esi;
+		int32_t edi;
+
+		__m128 xmm0;
+		__m128 xmm1;
+		__m128 xmm2;
+		__m128 xmm3;
+		__m128 xmm4;
+		__m128 xmm5;
+		__m128 xmm6;
+		__m128 xmm7;
+
+		/**
+		 * Returns the value of the esp register at the address where the hook was placed.
+		 * Since the trampoline makes changes to rsp before calling the proxy function this correction has to be done.
+		 * The shellcode could be modified to avoid the need of this function. All other attempts made so far had their own caveats.
+		 */
+		int64_t GetEspAtHookAddress()
+		{
+			//TODO random constant.. this compensates for all the pushed made the the stack before the hook function is called.
+			return esp + 0x9c;
+		}
+
+		/**
+		 * Prints the values of all registers
+		 */
+		void PrintRegister()
+		{
+			printf("register:\n\tesp %x\n\teax %x\n\tecx %x\n\tedx %x\n\tebx %x\n\tebp %x\n\tesi %x\n\tedi %x\n",
+				esp, eax, ecx, edx, ebx, ebp, esi, edi);
+		}
+
+		/**
+		 * Skips the call of the hooked function.
+		 */
+		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
+		{
+			hook->ChangeReturn(addressToReturnToAfterHook);
+		}
+
+		void SkipOriginalFunction()
+		{
+			hook->SkipOriginalFunction();
+		}
+
+		/**
+		 * Calls the original (unhooked) version of the function. Allows to call the hooked function without recursivly calling the hook again.
+		 */
+		template<class RET, class...PARAMS>
+		RET CallOriginal(PARAMS... parameters)
+		{
+			typedef RET(*fnSignature)(PARAMS...);
+			fnSignature fn = (fnSignature)hook->GetCallableVersionOfOriginal();
+			return fn(parameters...);
+		}
+
+	};
+	#endif
 }

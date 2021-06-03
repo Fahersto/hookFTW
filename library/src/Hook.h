@@ -28,11 +28,11 @@ namespace hookftw
 		//number of bytes to overwrite (don't cut instructions in half)
 		int hookLength{};
 
-		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> rellocatedBytes,  void __fastcall proxy(registers* registers));
+		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> rellocatedBytes,  void proxy(registers* registers));
 
 	public:
 		
-		Hook(int8_t* sourceAddress, void __fastcall proxy(registers* regs));
+		Hook(int8_t* sourceAddress, void proxy(registers* regs));
 		void Unhook();
 	};
 }

@@ -52,9 +52,9 @@ namespace hookftw
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
 		//https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
-		//Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte 
+		//Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (x64 only)
 		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM && 
-			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table
+			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table	
 	}
 
 	void RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
