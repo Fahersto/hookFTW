@@ -62,7 +62,6 @@ namespace hookftw
 		//TODO check if all types of calls can be relocated
 		//TODO there are for example call instructions that make use of  the ModRM byte
 		//TODO Call gate is a problem for now
-		//can we relocate call rax+18! YES such an sturction shoudl jstu be copied!
 
 		//for e8 call use ZydisCalcAbsoluteAddress
 		//copy all other calls with the expection of
@@ -75,11 +74,24 @@ namespace hookftw
 			//FF /3 CALL m16:32
 			if (instruction.raw.modrm.mod == 0)
 			{
-				ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+				if (instruction.raw.modrm.rm == 5) //disp32 see ModR/M table (intel manual)
+				{
+					ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+					originalJumpTarget = *(int64_t*)originalJumpTarget;
+				}
+				else
+				{
+					printf("[Error] - There should be no rip-relative call instruction with a R/M value other than 5\n");
+				}
+			}
+			else
+			{
+				printf("[Error] - There should be no rip-relative call instruction with a mod value other than 0\n");
 			}
 		}
 		else
 		{
+			//CALL rel16, CALL rel32, CALL ptr16:16, CALL ptr16:32
 			ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 		}
 		const int rellocatedCallInstructionsLength = 12;
