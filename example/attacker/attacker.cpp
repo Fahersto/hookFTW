@@ -1,8 +1,6 @@
 #include <Windows.h>
 
-
-
-#include <FuncStartHook.h>
+#include <Hook.h>
 #include <Logger.h>
 #include <DbgSymbols.h>
 #include <Decoder.h>
@@ -45,7 +43,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	hookftw::DbgSymbols dbgSymbols;
 	//dbgSymbols.EnumerateSymbols();
 
-	hookftw::FuncStartHook funcStartHook(
+	hookftw::Hook funcStartHook(
 		relocateRipRelaitveCall,
 		[](hookftw::context* ctx) {
 			printf("Inside FuncStartHook\n");
@@ -58,7 +56,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	);
 	
 	/*
-	hookftw::FuncStartHook prologHook(
+	hookftw::Hook prologHook(
 		dbgSymbols.GetAddressBySymbolName("calculation"),
 		[](hookftw::context* ctx) {
 			printf("Inside FuncStartHook\n");
@@ -80,7 +78,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	*/
 	
 	/*
-	hookftw::FuncStartHook prologHook(
+	hookftw::Hook prologHook(
 		calcFunctionStart_x64,
 		[](hookftw::context* ctx){
 			//printf("Inside FuncStartHook\n");
@@ -136,7 +134,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
 
 	
-	hookftw::FuncStartHook assignTestHook(
+	hookftw::Hook assignTestHook(
 		dbgSymbols.GetAddressBySymbolName("calculation"),
 		[](hookftw::context* ctx) {
 			//ctx->PrintRegister();

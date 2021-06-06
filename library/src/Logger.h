@@ -9,7 +9,7 @@ namespace hookftw
 	/**
 	 * \brief Handles logging
 	 * 
-	 * Provied utilities to write log data. It is possible to write to a console window and also write to a file.
+	 * Provides utilities to write log data. It is possible to write to a console window and also write to a file.
 	 */
 	class Logger
 	{

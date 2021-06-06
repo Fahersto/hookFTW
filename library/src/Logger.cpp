@@ -7,7 +7,6 @@ namespace hookftw
 	bool Logger::enableFileLogging_ = true;
 	FILE* Logger::logfile_;
 
-
 	/**
 	 * Writes a messages to the log.
 	 *

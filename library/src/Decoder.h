@@ -13,6 +13,12 @@ namespace hookftw
 		RIP_RELATIV
 	};
 	class Instruction;
+
+	/**
+	 * \brief Decodes the target binary and provides utilities to work with assembly instructions
+	 *
+	 * Disassembles the target binary.
+	 */
 	class Decoder
 	{
 		//we use a void pointer here since we can't forward declare the ZydisDecoder c typedef struct

@@ -9,11 +9,23 @@ namespace hookftw
 {
 	void* Decoder::_zydisDecoder = nullptr;
 
+	/**
+	 *  \brief Determines if the passed instruction is a x86 call instruction
+	 *
+	 *	@param instruction instruction to be examined
+	 *	@return true if the passed instruction is a call instruction. false otherwhise.
+	 */ 
 	bool IsCallInstruction(ZydisDecodedInstruction& instruction)
 	{
 		return instruction.mnemonic == ZYDIS_MNEMONIC_CALL;
 	}
-	
+
+	/**
+	 *  \brief Determines if the passed instruction is a x86 branch instruction
+	 *
+	 *	@param instruction instruction to be examined
+	 *	@return true if the passed instruction is a branch instruction instruction (jcc or loopcc). false otherwhise.
+	 */
 	bool IsBranchInstruction(ZydisDecodedInstruction& instruction)
 	{
 		switch (instruction.mnemonic)
@@ -49,6 +61,12 @@ namespace hookftw
 		}
 	}
 
+	/**
+	 *  \brief Determines if the passed instruction contains a rip-relateive memory access
+	 *
+	 *	@param instruction instruction to be examined
+	 *	@return true if the passed instruction contains a rip-relative memory access (x64 only,). false otherwhise.
+	 */
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
 		//https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
@@ -57,6 +75,13 @@ namespace hookftw
 			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table	
 	}
 
+	/**
+	 *  \brief Relocates a call instruction by calculating its absolute target address
+	 *
+	 *	@param instruction call instruction to be relocated
+	 *	@param instructionAddress original address of the call instruction
+	 *	@param rellocatedbytes relocated bytes
+	 */
 	void RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
 		//TODO check if all types of calls can be relocated
@@ -107,6 +132,13 @@ namespace hookftw
 		printf("[Warning] - Decoder relocated a call instruction. Unhooking is not safe!\n");
 	}
 
+	/**
+	 *  \brief Relocates a branch instruction
+	 *
+	 *	@param instruction branch instruction to be relocated
+	 *	@param instructionAddress original address of the branch instruction
+	 *	@param rellocatedbytes relocated bytes
+	 */
 	void RelocateBranchInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
 		ZyanU64 originalJumpTarget;
@@ -138,6 +170,17 @@ namespace hookftw
 		printf("[Info] - Decoder relocated a branch instruction\n");
 	}
 
+	/**
+	 *  \brief Relocates rip-relative memory instruction.
+	 *
+	 *  @warning It is important that the target address of the rip-relative instruction can be reached with a 4 byte displacement (+-2gb) from the relocated position, as rip-relative instructions always have a 4 byte displacement.
+	 *  If the address accessed by the rip-relative instruciton can't be reached with 4 bytes from the new location we can not relocate it easily. Each instruction would have to be treated individually.
+	 *
+	 *	@param instruction rip-relative instruction to be relocated
+	 *	@param instructionAddress original address of the rip-relative instruction
+	 *	@param relocatedInstructionAddress relocated address of the rip-relative instruction
+	 *	@param rellocatedbytes relocated bytes
+	 */
 	void RelocateRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
 		int8_t* tmpBuffer = (int8_t*)malloc(instruction.length);
@@ -162,6 +205,9 @@ namespace hookftw
 		printf("[Info] - Decoder rellocated a rip-relative memory instruction\n");
 	}
 
+	/**
+	 *  \brief Creates a decoder instance. The first call do this function initialises the wrapped zydis decoder.
+	 */
 	Decoder::Decoder()
 	{
 		static ZydisDecoder decoder; 
@@ -197,6 +243,12 @@ namespace hookftw
 	 * We need need to know the targetAddress to relocate rip-relative instructions.
 	 * We do generate a vector<int8_t> of relocated instructions instead of writing them directly to the target address
 	 * to first check if the entire relocation succeeds before writing to the target
+	 *
+	 * @param sourceAddress starting address of instructions to be relocated
+	 * @param length minimum amount of bytes to be relocated. As only complete instructions can be relocated we may relocate more than "length" bytes.
+	 * @param targetAddress new starting address for relocated instructions
+	 * 
+	 * @return returns bytes of the relocated instructions
 	 */
 	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress)
 	{
@@ -254,6 +306,14 @@ namespace hookftw
 		return relocatedbytes;
 	}
 
+	/**
+	 *  \brief Retrieves the length of instructions starting at an address.
+	 *
+	 *  @param sourceAddress address of the instructions to be examined
+	 *  @length minimun amount of bytes to examine
+	 *
+	 *  @return length of complete instructions with a minimun of the passed length
+	 */
 	int Decoder::GetLengthOfInstructions(int8_t* sourceAddress, int length)
 	{
 		int byteCount = 0;
@@ -275,6 +335,15 @@ namespace hookftw
 		return byteCount;
 	}
 
+	/**
+	 *  \brief Scans memory for specific instruction types. This is mainly used for testing.
+	 *
+	 *  @param startAddress start address of the scan
+	 *  @param type of instrction to scan for
+	 *  @length minimum amounf of bytes to search (the scan does not stop in the middle of an instruction)
+	 *
+	 *  @return length of complete instructions with a minimun of the passed length
+	 */
 	std::vector<int8_t*> Decoder::FindRelativeInstructionsOfType(int8_t* startAddress, RelativeInstruction type, int length)
 	{
 		std::vector<int8_t*> foundInstructions;
@@ -329,6 +398,12 @@ namespace hookftw
 	/**
 	 * Calculates the lowest and highest realtive accesses. These have to be taken into consideration when creating the trampoline
 	 * as we can only relocate rip-relative intructions if they can access their original target with "relocated rip" + rel32
+	 *
+	 * @param sourceAddress start address of instructions to be examined
+	 * @param length minimum amount of bytes to examine
+	 * @param lowestAddress [out] lowest relative access found
+	 * @param highestAddress [out] highest relative access found
+	 * @return returns true of the bounds could be calculated. False otherwhise.
 	 */
 	bool Decoder::CalculateBoundsOfRelativeAddresses(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress)
 	{
