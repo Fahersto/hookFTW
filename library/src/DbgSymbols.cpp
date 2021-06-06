@@ -9,12 +9,16 @@
 namespace hookftw
 {
     bool DbgSymbols::symbolsLoaded_ = false;
+    int64_t DbgSymbols::baseAddress_ = NULL;
 
     DbgSymbols::DbgSymbols(char* path)
     {
     	if (!symbolsLoaded_)
     	{
             LoadSymbols(path);
+            char executablePath[MAX_PATH];
+            GetModuleFileNameA(NULL, executablePath, MAX_PATH);
+			baseAddress_ = SymLoadModuleEx(GetCurrentProcess(), NULL, executablePath, NULL, (DWORD64)GetModuleHandle(nullptr), 0x7fffffffffffffff, NULL, 0);
             symbolsLoaded_ = true;
     	}
     }
@@ -45,21 +49,12 @@ namespace hookftw
     //https://docs.microsoft.com/en-us/windows/win32/debug/using-dbghelp
     int8_t* DbgSymbols::GetAddressBySymbolName(const char* name)
     {
-        if (!symbolsLoaded_)
+        if (!symbolsLoaded_ || !baseAddress_)
         {
+            printf("Symbols are not loaded\n");
             return nullptr;
         }
-
-        char executablePath[MAX_PATH];
-        GetModuleFileNameA(NULL, executablePath, MAX_PATH);
-        const DWORD64 base_addr = SymLoadModuleEx(GetCurrentProcess(), NULL, executablePath, NULL, (DWORD64)GetModuleHandle(nullptr), 0x7fffffffffffffff, NULL, 0);
-
-    	if(!base_addr)
-    	{
-            auto error = GetLastError();
-            printf("SymLoadModuleEx failed: %d", error);
-    	}
-
+    	
         TCHAR szSymbolName[MAX_SYM_NAME];
         ULONG64 buffer[(sizeof(SYMBOL_INFO) +
             MAX_SYM_NAME * sizeof(TCHAR) +
@@ -76,7 +71,7 @@ namespace hookftw
     	
         if (SymFromName(GetCurrentProcess(), name, pSymbol))
         {
-            int8_t* base = (int8_t*)base_addr;
+            int8_t* base = (int8_t*)baseAddress_;
             int8_t* symbolAddress = (int8_t*)pSymbol->Address;
             int8_t* symbolBase = (int8_t*)pSymbol->ModBase;
         	

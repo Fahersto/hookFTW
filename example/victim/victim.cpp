@@ -2,6 +2,30 @@
 #include <Windows.h>
 #include <vector>
 
+class Animal
+{
+public:
+	virtual void MakeSound() = 0;
+};
+
+class Cow : public Animal
+{
+public:
+	void MakeSound() override
+	{
+		printf("\t[Cow] - Copy on write\n");
+	}
+};
+
+class Cat : public Animal
+{
+public:
+	void MakeSound() override
+	{
+		printf("\t[Cat] - concatenate files and print on the standard output\n");
+	}
+};
+
 int sum(int x, int y, int z)
 {
 	return x * y + z * z;
@@ -56,9 +80,21 @@ int assignTest(int rofl)
 	return returnVal;
 }
 
+
+
+
 int main()
 {
 	printf("aslr: %p calculationOffset: %p calculation: %p\n", GetModuleHandle(NULL), (BYTE*)calculation - (BYTE*)GetModuleHandle(NULL), calculation);
+
+	std::vector<Animal*> animals;
+	Cow cow;
+	Cat cat;
+	animals.push_back(&cow);
+	animals.push_back(&cat);
+
+	printf("cow address: %p\n", &cow);
+	printf("cat address: %p\n", &cat);
 	while (true)
 	{
 		const int value = 2;
@@ -67,6 +103,13 @@ int main()
 		int test = 1337;
 		test = assignTest(1337);
 		printf("assignTest = %d\n", test);
+
+		printf("Animals\n");
+		for (auto& animal : animals)
+		{
+			animal->MakeSound();
+		}
+		
 		Sleep(1000);
 	}
 }

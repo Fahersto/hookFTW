@@ -13,6 +13,7 @@ namespace hookftw
 	class DbgSymbols
 	{
 		static bool symbolsLoaded_;
+		static int64_t baseAddress_;
 		
 		bool LoadSymbols(char* path);
 	public:

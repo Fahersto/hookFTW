@@ -1,6 +1,7 @@
 #include <Windows.h>
 
 #include <Hook.h>
+#include <VFTHook.h>
 #include <Logger.h>
 #include <DbgSymbols.h>
 #include <Decoder.h>
@@ -116,6 +117,18 @@ DWORD __stdcall Run(LPVOID hModule)
 	return TRUE;
 }
 #elif _WIN32
+
+
+void hookedCow()
+{
+	printf("\t[Cow] - hooked - makes muuuh\n");
+}
+
+void hookedCat()
+{
+	printf("\t[Cat] - hooked - makes meow\n");
+}
+
 DWORD __stdcall Run(LPVOID hModule)
 {
 	//Create debugging console
@@ -128,11 +141,12 @@ DWORD __stdcall Run(LPVOID hModule)
 
 	//Load debug symbols
 	hookftw::DbgSymbols dbgSymbols;
-
+	//dbgSymbols.EnumerateSymbols();
 
 	hookftw::Decoder decoder;
 	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
 
+	/*
 	
 	hookftw::Hook assignTestHook(
 		dbgSymbols.GetAddressBySymbolName("calculation"),
@@ -144,11 +158,22 @@ DWORD __stdcall Run(LPVOID hModule)
 		}
 	);
 
+	*/
+
+	hookftw::VFTHook cowVmtHook((void**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"));
+	cowVmtHook.Hook(0, &hookedCow);
+
+	hookftw::VFTHook catVmtHook((void**)dbgSymbols.GetAddressBySymbolName("Cat::`vftable'"));
+	catVmtHook.Hook(0, &hookedCat);
+	
+
 	while (true)
 	{
 		if (GetAsyncKeyState(VK_F1) & 0x1)
 		{
-			assignTestHook.Unhook();
+			cowVmtHook.Unhook();
+			catVmtHook.Unhook();
+			//assignTestHook.Unhook();
 			//calculationHook.Unhook();
 			break;
 		}
