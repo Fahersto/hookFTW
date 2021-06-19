@@ -264,11 +264,11 @@ namespace hookftw
 #elif _WIN32
 void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 {
-	const int stubLength = 160;
+	const int stubLength = 171;
 	const int controlFlowStubLength = 18;
-	const int proxyFunctionAddressIndex = 80;
+	const int proxyFunctionAddressIndex = 92;
 
-	const int thisAddress = 73;
+	const int thisAddress = 85;
 	//const int saveRspAddress = 196;
 	//const int restoreRspAddress = 230;
 
@@ -305,7 +305,14 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		0x52,							//push   edx
 		0x51,							//push   ecx
 		0x50,							//push   eax
-		0x54,							//push	 esp		//save esp so we can overwrite register values
+
+
+
+		//"push" calculated esp on hook beginnign (make up for all the changes to esp in this trampoline so far)
+		0x83, 0xEC, 0x04,				//sub    esp,0x4
+		0x89, 0xE0,						//mov    eax,esp
+		0x05, 0x9C, 0x00, 0x00, 0x00,	//add    eax,0x9c
+		0x89, 0x04, 0x24,				//mov    DWORD PTR [esp],eax
 
 		0xB8, 0x44, 0x33, 0x22, 0x11,	//mov	 eax, this 
 		0x50,							//push	 eax
@@ -313,9 +320,9 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		0x89, 0xE1,						//mov    ecx,esp
 		0xE8, 0x44, 0x33, 0x22, 0x11,	//call   11223344
 
-		0x83, 0xC4, 0x04,				//add    esp,0x4
-		
-		0x5C,							//pop	 esp
+		//comptensate for not popping recalulated esp and pushing Hook thisptr
+		0x83, 0xC4, 0x08,				//add    esp,0x8
+	
 		0x58,							//pop    eax
 		0x59,							//pop    ecx
 		0x5A,							//pop    edx			
@@ -390,10 +397,6 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 
 	//copy jump back to original code
 	memcpy(&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()], stubJumpBack, jmpStubLength);
-
-
-
-		
 		
 	//make trampoline executable
 	DWORD pageProtection;
