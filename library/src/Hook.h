@@ -109,19 +109,6 @@ namespace hookftw
 		__m128 xmm15;
 
 		/**
-		 * Returns the value of the rsp register at the address where the hook was placed.
-		 * Since the trampoline makes changes to rsp before calling the proxy function this correction has to be done.
-		 * The shellcode could be modified to avoid the need of this function. All other attempts made so far had their own caveats.
-		 *
-		 * @eturn Value of the RSP at the time of hooking.
-		 */
-		int64_t GetRspAtHookAddress()
-		{
-			//TODO random constant.. this compensates for all the pushed made the the stack before the hook function is called.
-			return rsp + 0x180;
-		}
-
-		/**
 		 * Prints the values of all registers
 		 */
 		void PrintRegister()
@@ -191,18 +178,6 @@ namespace hookftw
 		__m128 xmm5;
 		__m128 xmm6;
 		__m128 xmm7;
-
-		/**
-		 * Returns the value of the esp register at the address where the hook was placed.
-		 * Since the trampoline makes changes to rsp before calling the proxy function this correction has to be done.
-		 * The shellcode could be modified to avoid the need of this function. All other attempts made so far had their own caveats.
-		 * @eturn Value of the ESP at the time of hooking.
-		 */
-		int64_t GetEspAtHookAddress()
-		{
-			//TODO random constant.. this compensates for all the pushed made the the stack before the hook function is called.
-			return esp + 0x9c;
-		}
 
 		/**
 		 * Prints the values of all registers
