@@ -518,7 +518,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		//The next execution of the same RET instruciton will then take the return address pushed on the stack by the caller of the hooked funciton, therefore skipping the call.
 
 #if _WIN64
-		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0x1be + hookLength_);
+		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0x1cd + hookLength_);
 #elif _WIN32
 
 		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0xa9 + hookLength_);
