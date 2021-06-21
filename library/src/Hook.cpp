@@ -49,18 +49,18 @@ namespace hookftw
 #if _WIN64
 	void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 	{
-		const int stubLength = 419;
+		const int stubLength = 434;
 		const int controlFlowStubLength = 33;
-		const int proxyFunctionAddressIndex = 215;
+		const int proxyFunctionAddressIndex = 231;
 
 		//compensates for all the changes to the stack before the proxy function is called
 		//this way we get the rsp value time 
-		const int rspCompenstaion = 384;
+		const int rspCompenstaion = 400;
 
 		//const int saveRaxAddress = 180;
-		const int thisAddress = 179;
-		const int saveRspAddress = 193;
-		const int restoreRspAddress = 227;
+		const int thisAddress = 195;
+		const int saveRspAddress = 209;
+		const int restoreRspAddress = 243;
 
 		//5 bytes for jmp rel32
 		//14 bytes are required to place JMP[rip+0x] 0x1122334455667788
@@ -124,9 +124,16 @@ namespace hookftw
 			0x52,														//push   rdx
 			0x51,														//push   rcx
 			0x50,														//push   rax
-			0x54,														//push	 rsp
+
+			//calculcate RSP at time of call (the trampoline has already modified the rsp by all these pushes)
+			0x48, 0x83, 0xEC, 0x08,										//sub    rsp,0x8
+			0x48, 0x89, 0xE0,											//mov    rax,rsp
+			0x48, 0x05, 0x88, 0x01, 0x00, 0x00,							//add    rax,0x188
+			0x48, 0x89, 0x04, 0x24,										//mov    QWORD PTR [rsp],rax	
+
 			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
 			0x50,														//push	 rax
+			
 			0x48, 0x89, 0xE1,											//mov    rcx, rsp					//make first argument point at the stack
 			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov	 rax, addressOfLocal		//save rsp because we don't know if we substract bytes to get the correct alignment before the call
 			0x48, 0x89, 0x20,											//mov	 [rax], rsp
@@ -136,8 +143,7 @@ namespace hookftw
 			0xFF, 0xD0,													//call   rax						(call proxy function)
 			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov rax, addressOforiginalRspLocalVariable. We restore rsp like this because we don't know if stack was aligned to 16 byte beforehand
 			0x48, 0x8B, 0x20,											//mov rsp, [rax]
-			0x48, 0x83, 0xC4, 0x8,										//add    rsp, 0x8	//compensate for the "push rax" before saving rsp
-			0x5c,														//pop	 rsp
+			0x48, 0x83, 0xC4, 0x10,										//add    rsp, 0x10	//compensate for the "push rax" before saving rspand for not popping the calculating RSP at the time of hooking back
 			0x58,														//pop    rax
 			0x59,														//pop    rcx
 			0x5A,														//pop    rdx
