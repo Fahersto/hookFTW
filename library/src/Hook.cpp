@@ -521,7 +521,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0x1cd + hookLength_);
 #elif _WIN32
 
-		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0xa9 + hookLength_);
+		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0xb3 + hookLength_);
 #endif
 	}
 }
