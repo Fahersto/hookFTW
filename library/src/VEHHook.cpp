@@ -21,7 +21,7 @@ namespace hookftw
 			//check if we are at the instruction within the page where we hooked
 			if (iterator != VEHHook::addressToProxyfunction_.end())
 			{
-				//change program counter
+				//change program counter 
 				pExceptionInfo->ContextRecord->Rip = (DWORD64)iterator->second; 
 			}
 
@@ -43,15 +43,41 @@ namespace hookftw
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
 #elif _WIN32
-	LONG WINAPI VEHHook::ExceptionHandler(EXCEPTION_POINTERS* pExceptionInfo)
+	LONG WINAPI VEHHook::CustomExceptionHandler(EXCEPTION_POINTERS* pExceptionInfo)
 	{
-		
+		//catch page guard validation
+		if (pExceptionInfo->ExceptionRecord->ExceptionCode == STATUS_GUARD_PAGE_VIOLATION)
+		{
+			auto iterator = VEHHook::addressToProxyfunction_.find((int8_t*)pExceptionInfo->ContextRecord->Eip);
+			addressedWhichCausedException_ = (int8_t*)pExceptionInfo->ContextRecord->Eip;
+
+			//check if we are at the instruction within the page where we hooked
+			if (iterator != VEHHook::addressToProxyfunction_.end())
+			{
+				//change program counter
+				pExceptionInfo->ContextRecord->Eip = (DWORD64)iterator->second;
+			}
+
+			//STATUS_SINGLE_STEP exception --> handler will be invoked again on the next instruction
+			pExceptionInfo->ContextRecord->EFlags |= 0x100;
+			return EXCEPTION_CONTINUE_EXECUTION;
+}
+
+		//catch STATUS_SINGLE_STEP exception
+		if (pExceptionInfo->ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP)
+		{
+			DWORD pageProtection;
+			//set PAGE_GUARD protection because it got removed when catched earlier
+			VirtualProtect(addressedWhichCausedException_, 1, PAGE_GUARD | PAGE_EXECUTE_READ, &pageProtection);
+			return EXCEPTION_CONTINUE_EXECUTION;
+		}
+
+		//pass through exception which we don't handle
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
 #endif
 
 	VEHHook::VEHHook(int8_t* originalFunction, int8_t* hookedFunction)
-		//: function_(function), hookedFunction_(hookedFunction)
 	{
 		MEMORY_BASIC_INFORMATION mbiOriginal;
 		MEMORY_BASIC_INFORMATION mbiHookedFunction;
@@ -79,7 +105,6 @@ namespace hookftw
 		//Toggle PAGE_GUARD flag on the page
 		VirtualProtect(originalFunction, 1, PAGE_EXECUTE_READ | PAGE_GUARD, &originalPageProtection_);
 	}
-
 
 	void VEHHook::Unhook()
 	{
