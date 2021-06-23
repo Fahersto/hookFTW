@@ -42,6 +42,8 @@ namespace hookftw
 		int64_t savedRax_ = NULL;
 		int64_t originalRsp_ = NULL;
 
+		int8_t* addressOfRET = nullptr;
+
 		void AllocateTrampoline(int8_t* hookAddress);
 		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx));
 

@@ -53,6 +53,9 @@ namespace hookftw
 		const int controlFlowStubLength = 33;
 		const int proxyFunctionAddressIndex = 231;
 
+		//address of RET is the last instruction in the control flow stub
+		addressOfRET = trampoline_ + stubLength + controlFlowStubLength - 1;
+
 		//compensates for all the changes to the stack before the proxy function is called
 		//this way we get the rsp value time 
 		const int rspCompenstaion = 400;
@@ -279,6 +282,9 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	//const int restoreRspAddress = 230;
 
 	const int jmpStubLength = 5;
+
+	//address of RET is the last instruction in the control flow stub
+	addressOfRET = trampoline_ + stubLength + controlFlowStubLength - 1;
 		
 	//5 bytes are required to place JMP 0x11223344
 	assert(hookLength >= jmpStubLength);
@@ -513,15 +519,8 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	void Hook::SkipOriginalFunction()
 	{
 		//this is the location of the RET instruction at the end of the trampoline_
-		//TODO hardcoding the size here at a random location is bad
 		//this will cause the RET at the end of the trampoline (but before relocated instructions) to return to itself.
 		//The next execution of the same RET instruciton will then take the return address pushed on the stack by the caller of the hooked funciton, therefore skipping the call.
-
-#if _WIN64
-		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0x1cd + hookLength_);
-#elif _WIN32
-
-		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + 0xb3 + hookLength_);
-#endif
+		returnAddressFromTrampoline_ = (int64_t)addressOfRET;
 	}
 }
