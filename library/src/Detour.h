@@ -24,7 +24,7 @@ namespace hookftw
 		int hookLength_;
 
 	public:
-		void Hook(int8_t* sourceAddress, int8_t* targetAddress);
+		int8_t* Hook(int8_t* sourceAddress, int8_t* targetAddress);
 		void Unhook();
 	};
 }

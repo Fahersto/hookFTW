@@ -14,7 +14,7 @@ namespace hookftw
 	//0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	absolute address of jump
 	//The proxy function is expected to return to the trampoline (return value of DetourHook::Hook()) which runs the overwritten instructions and returns back to the original code
 	//Important: the overwritten bytes are NOT relocated meaning only position independet instructions can be overwritten
-	void Detour::Hook(int8_t* sourceAddress, int8_t* targetAddress)
+	int8_t* Detour::Hook(int8_t* sourceAddress, int8_t* targetAddress)
 	{
 		//length of detour
 		const int stubJumpBackLength = 14;
@@ -77,6 +77,9 @@ namespace hookftw
 		//restore page protection
 		VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
 		VirtualProtect(trampoline_, relocatedBytes.size() + 14, PAGE_EXECUTE_READWRITE, &pageProtection);
+	
+		//return the address of the trampoline so we can call it to invoke the original function
+		return trampoline_;
 	}
 
 
@@ -106,7 +109,7 @@ namespace hookftw
 	//The proxy function is expected to return to the trampoline (return value of DetourHook::Hook()) which runs the overwritten instructions and returns back to the original code
 	//Only for x86 since JMP (0xE9) hast 32bit target address
 	//Important: the overwritten bytes are NOT relocated meaning only position independet instructions can be overwritten
-	void Detour::Hook(int8_t* sourceAddress, int8_t* targetAddress)
+	int8_t* Detour::Hook(int8_t* sourceAddress, int8_t* targetAddress)
 	{
 		//length of detour
 		const int stubJumpBackLength = 5;
@@ -170,6 +173,9 @@ namespace hookftw
 
 		//make trampoline executable
 		VirtualProtect(trampoline_, relocatedBytes.size() + 5, PAGE_EXECUTE_READWRITE, &pageProtection);
+	
+		//return the address of the trampoline so we can call it to invoke the original function
+		return trampoline_;
 	}
 
 	//
