@@ -453,7 +453,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		this->sourceAddress_ = sourceAddress;
 
 		//TODO issue trampoline_ is not wihthing range.. because we dont even try it to allocate it in range
-		//TODO check fir rip relative instructions if we can reach original targets with rel32
+		//TODO check for rip relative instructions if we can reach original targets with rel32
 		int64_t lowestRelativeAddress = 0;
 		int64_t hightestRelativeAddress = 0;
 		if(!decoder.CalculateBoundsOfRelativeAddresses(sourceAddress, lengthWithoutCuttingInstructionsInHalf, &lowestRelativeAddress, &hightestRelativeAddress))
