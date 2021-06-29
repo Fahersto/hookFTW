@@ -277,7 +277,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	const int controlFlowStubLength = 18;
 	const int proxyFunctionAddressIndex = 93;
 
-	const int thisAddress = 86;
+	const int thisAddress = 85;
 	//const int saveRspAddress = 196;
 	//const int restoreRspAddress = 230;
 
@@ -294,7 +294,6 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	//3. restore all registers
 	//4. jump back to orignal function
 	BYTE stub[stubLength] = {
-		0x9c,							//pushfd
 		0x83, 0xEC, 0x10,				//sub    esp,0x10
 		0xf3, 0x0f, 0x7f, 0x3c, 0x24,	//movdqu XMMWORD PTR [esp],xmm7
 		0x83, 0xEC, 0x10,				//sub    esp,0x10
@@ -319,8 +318,6 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		0x51,							//push   ecx
 		0x50,							//push   eax
 
-
-
 		//"push" calculated esp on hook beginnign (make up for all the changes to esp in this trampoline so far)
 		0x83, 0xEC, 0x04,				//sub    esp,0x4
 		0x89, 0xE0,						//mov    eax,esp
@@ -331,8 +328,9 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		0x50,							//push	 eax
 		
 		0x89, 0xE1,						//mov    ecx,esp
+		0x9c,							//pushfd
 		0xE8, 0x44, 0x33, 0x22, 0x11,	//call   11223344
-
+		0x9d,							//popfd	
 		//comptensate for not popping recalulated esp and pushing Hook thisptr
 		0x83, 0xC4, 0x08,				//add    esp,0x8
 	
@@ -359,7 +357,6 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		0x83, 0xC4, 0x10,				//add    esp,0x10
 		0xf3, 0x0f, 0x6f, 0x3c, 0x24,	//movdqu xmm7,XMMWORD PTR [esp]
 		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0x9d							//popfd	
 	};
 
 	BYTE stubJumpBack[jmpStubLength] = { 0xE9, 0x11, 0x22, 0x33, 0x44 };	//jmp 1122335a (back to original code)
