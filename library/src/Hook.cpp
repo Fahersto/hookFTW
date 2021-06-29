@@ -273,11 +273,11 @@ namespace hookftw
 #elif _WIN32
 void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 {
-	const int stubLength = 171;
+	const int stubLength = 173;
 	const int controlFlowStubLength = 18;
-	const int proxyFunctionAddressIndex = 92;
+	const int proxyFunctionAddressIndex = 93;
 
-	const int thisAddress = 85;
+	const int thisAddress = 86;
 	//const int saveRspAddress = 196;
 	//const int restoreRspAddress = 230;
 
@@ -294,6 +294,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	//3. restore all registers
 	//4. jump back to orignal function
 	BYTE stub[stubLength] = {
+		0x9c,							//pushfd
 		0x83, 0xEC, 0x10,				//sub    esp,0x10
 		0xf3, 0x0f, 0x7f, 0x3c, 0x24,	//movdqu XMMWORD PTR [esp],xmm7
 		0x83, 0xEC, 0x10,				//sub    esp,0x10
@@ -357,7 +358,8 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		0xf3, 0x0f, 0x6f, 0x34, 0x24,	//movdqu xmm6,XMMWORD PTR [esp]
 		0x83, 0xC4, 0x10,				//add    esp,0x10
 		0xf3, 0x0f, 0x6f, 0x3c, 0x24,	//movdqu xmm7,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10				//add    esp,0x10
+		0x83, 0xC4, 0x10,				//add    esp,0x10
+		0x9d							//popfd	
 	};
 
 	BYTE stubJumpBack[jmpStubLength] = { 0xE9, 0x11, 0x22, 0x33, 0x44 };	//jmp 1122335a (back to original code)
