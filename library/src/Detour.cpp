@@ -42,7 +42,10 @@ namespace hookftw
 		//allocate space for stub + space for overwritten bytes + jumpback
 		//TODO the calculation is technically not correct. But since we get a page worth of memory anyway it doesn't matter
 		trampoline_ = (int8_t*)VirtualAlloc(NULL, hookLength_ + stubJumpBackLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
+		if (!trampoline_)
+		{
+			printf("[Error] - Detour - Failed to allocate trampoline\n");
+		}
 	
 		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_);
 		if (relocatedBytes.empty())
@@ -138,7 +141,7 @@ namespace hookftw
 		//allocate trampoline
 		//TODO check fir rip relative instructions if we can reach original targets with rel32
 		trampoline_ = (int8_t*)VirtualAlloc(NULL, hookLength_ + stubJumpBackLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-		if (trampoline_)
+		if (!trampoline_)
 		{
 			printf("[Error] - Detour - Failed to allocate trampoline\n");
 		}
