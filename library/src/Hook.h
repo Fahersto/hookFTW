@@ -93,30 +93,33 @@ namespace hookftw
 		int64_t r14;
 		int64_t r15;
 
-		__m128 xmm0;
-		__m128 xmm1;
-		__m128 xmm2;
-		__m128 xmm3;
-		__m128 xmm4;
-		__m128 xmm5;
-		__m128 xmm6;
-		__m128 xmm7;
-		__m128 xmm8;
-		__m128 xmm9;
-		__m128 xmm10;
-		__m128 xmm11;
-		__m128 xmm12;
-		__m128 xmm13;
-		__m128 xmm14;
-		__m128 xmm15;
+		//why not use __m128? because it uses 16 byte alignment
+		int8_t xmm0[16];
+		int8_t xmm1[16];
+		int8_t xmm2[16];
+		int8_t xmm3[16];
+		int8_t xmm4[16];
+		int8_t xmm5[16];
+		int8_t xmm6[16];
+		int8_t xmm7[16];
+		int8_t xmm8[16];
+		int8_t xmm9[16];
+		int8_t xmm10[16];
+		int8_t xmm11[16];
+		int8_t xmm12[16];
+		int8_t xmm13[16];
+		int8_t xmm14[16];
+		int8_t xmm15[16];
+
+		int64_t rflags;
 
 		/**
 		 * Prints the values of all registers
 		 */
 		void PrintRegister()
 		{
-			printf("register:\n\trsp %llx\n\trax %llx\n\trcx %llx\n\trdx %llx\n\trbx %llx\n\trbp %llx\n\trsi %llx\n\trdi %llx\n\tr8 %llx\n\tr9 %llx\n\tr10 %llx\n\tr11 %llx\n\tr12 %llx\n\tr13 %llx\n\tr14 %llx\n\tr15 %llx\n",
-				rsp, rax, rcx, rdx, rbx, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15);
+			printf("register:\n\trsp %llx\n\trax %llx\n\trcx %llx\n\trdx %llx\n\trbx %llx\n\trbp %llx\n\trsi %llx\n\trdi %llx\n\tr8 %llx\n\tr9 %llx\n\tr10 %llx\n\tr11 %llx\n\tr12 %llx\n\tr13 %llx\n\tr14 %llx\n\tr15 %llx\n\trflags %llx\n",
+				rsp, rax, rcx, rdx, rbx, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15, rflags);
 		}
 		
 
@@ -172,14 +175,15 @@ namespace hookftw
 		int32_t esi;
 		int32_t edi;
 
-		__m128 xmm0;
-		__m128 xmm1;
-		__m128 xmm2;
-		__m128 xmm3;
-		__m128 xmm4;
-		__m128 xmm5;
-		__m128 xmm6;
-		__m128 xmm7;
+		//why not use __m128? because it uses 16 byte alignment
+		int8_t xmm0[16];
+		int8_t xmm1[16];
+		int8_t xmm2[16];
+		int8_t xmm3[16];
+		int8_t xmm4[16];
+		int8_t xmm5[16];
+		int8_t xmm6[16];
+		int8_t xmm7[16];
 
 		int32_t eflags;
 
