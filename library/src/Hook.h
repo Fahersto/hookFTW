@@ -181,13 +181,15 @@ namespace hookftw
 		__m128 xmm6;
 		__m128 xmm7;
 
+		int32_t eflags;
+
 		/**
 		 * Prints the values of all registers
 		 */
 		void PrintRegister()
 		{
-			printf("register:\n\tesp %x\n\teax %x\n\tecx %x\n\tedx %x\n\tebx %x\n\tebp %x\n\tesi %x\n\tedi %x\n",
-				esp, eax, ecx, edx, ebx, ebp, esi, edi);
+			printf("register:\n\tesp %x\n\teax %x\n\tecx %x\n\tedx %x\n\tebx %x\n\tebp %x\n\tesi %x\n\tedi %x\n\teflags %x\n",
+				esp, eax, ecx, edx, ebx, ebp, esi, edi, eflags);
 		}
 
 		/**
