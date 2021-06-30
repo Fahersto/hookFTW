@@ -72,7 +72,7 @@ namespace hookftw
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 
-		//pass through exception which we don't handle
+		//pass through exceptions we don't handle
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
 #endif
