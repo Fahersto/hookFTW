@@ -23,7 +23,8 @@ namespace hookftw
 		static std::map<int8_t*, int8_t*> addressToProxyfunction_;
 
 	public:	
-		VEHHook(int8_t* originalFunction, int8_t* hookedFunction);
+		VEHHook();
+		void Hook(int8_t* originalFunction, int8_t* hookedFunction);
 		void Unhook();
 	};
 }

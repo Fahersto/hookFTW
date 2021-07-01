@@ -431,15 +431,18 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 }
 #endif
-	
+MidfunctionHook::MidfunctionHook()
+	: savedRax_(0)
+{
+
+}
 	/**
 	 * Creates a hook.
 	 *
 	 * @param sourceAddress Address to apply the hook to
 	 * @param proxy Function to be executed when hook is called
 	 */
-	MidfunctionHook::MidfunctionHook(int8_t* sourceAddress, void __fastcall proxy(context* ctx))
-		: savedRax_(0)
+	void MidfunctionHook::Hook(int8_t* sourceAddress, void __fastcall proxy(context* ctx))
 	{
 		Decoder decoder;
 

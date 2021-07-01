@@ -50,7 +50,8 @@ namespace hookftw
 		
 	public:
 		int8_t* GetCallableVersionOfOriginal();
-		MidfunctionHook(int8_t* sourceAddress, void __fastcall proxy(context* ctx));
+		MidfunctionHook();
+		void Hook(int8_t* sourceAddress, void __fastcall proxy(context* ctx));
 		
 		void Unhook();
 
