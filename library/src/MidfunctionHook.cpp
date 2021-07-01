@@ -1,4 +1,4 @@
-#include "Hook.h"
+#include "MidfunctionHook.h"
 
 #include <cassert>
 #include <vector>
@@ -13,7 +13,7 @@ namespace hookftw
 	/**
 	 * Attempts to allocate a trampoline_ within +-2gb range of the hook so we only need 5 bytes to hook (jmp rel32) instead of 14 (jmp[rip+0] int64_t, only in x64)
 	 */
-	void Hook::AllocateTrampoline(int8_t* hookAddress)
+	void MidfunctionHook::AllocateTrampoline(int8_t* hookAddress)
 	{
 		//TODO respect lower and upper bound of relative instrucions
 		int requiredBytes = 5;
@@ -47,7 +47,7 @@ namespace hookftw
 	}
 
 #if _WIN64
-	void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
+	void MidfunctionHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 	{
 		const int stubLength = 434;
 		const int controlFlowStubLength = 33;
@@ -438,7 +438,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	 * @param sourceAddress Address to apply the hook to
 	 * @param proxy Function to be executed when hook is called
 	 */
-	Hook::Hook(int8_t* sourceAddress, void __fastcall proxy(context* ctx))
+	MidfunctionHook::MidfunctionHook(int8_t* sourceAddress, void __fastcall proxy(context* ctx))
 		: savedRax_(0)
 	{
 		Decoder decoder;
@@ -484,7 +484,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	 *
 	 * @return Address of function to call
 	 */
-	int8_t* Hook::GetCallableVersionOfOriginal()
+	int8_t* MidfunctionHook::GetCallableVersionOfOriginal()
 	{
 		return addressToCallFunctionWithoutHook_;
 	}
@@ -492,7 +492,7 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 	/**
 	 * Restores the original function by copying back the original bytes of the hooked function that where overwritten by placing the hook.
 	 */
-	void Hook::Unhook()
+	void MidfunctionHook::Unhook()
 	{
 		//make page writeable
 		DWORD dwback;
@@ -511,12 +511,12 @@ void Hook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength,
 		//delete[] trampoline_;
 	}
 
-	void Hook::ChangeReturn(int64_t returnValue)
+	void MidfunctionHook::ChangeReturn(int64_t returnValue)
 	{
 		returnAddressFromTrampoline_ = returnValue;
 	}
 
-	void Hook::SkipOriginalFunction()
+	void MidfunctionHook::SkipOriginalFunction()
 	{
 		//this is the location of the RET instruction at the end of the trampoline_
 		//this will cause the RET at the end of the trampoline (but before relocated instructions) to return to itself.

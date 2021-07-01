@@ -18,7 +18,7 @@ namespace hookftw
 	 * 
 	 * \warning The caller is responsible to ensure that the start of a function is hooked. Otherwhise context::CallOriginal() and context::SkipCall() behavior is undefined.
 	 */
-	class Hook
+	class MidfunctionHook
 	{
 		//bytes overwritten by placing the detour
 		int8_t* originalBytes_ = nullptr;
@@ -50,7 +50,7 @@ namespace hookftw
 		
 	public:
 		int8_t* GetCallableVersionOfOriginal();
-		Hook(int8_t* sourceAddress, void __fastcall proxy(context* ctx));
+		MidfunctionHook(int8_t* sourceAddress, void __fastcall proxy(context* ctx));
 		
 		void Unhook();
 
@@ -74,7 +74,7 @@ namespace hookftw
 	  */
 	struct context
 	{
-		Hook* hook;
+		MidfunctionHook* hook;
 		//registers registers; we do not use the struct here because it is aligned at the start
 		int64_t rsp;
 		int64_t rax;
