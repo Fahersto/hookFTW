@@ -9,7 +9,7 @@ namespace hookftw
 	 *
 	 * @param vftable address of the first entry in the virtual function table
 	 */
-	VFTHook::VFTHook(void** vftable)
+	VFTHook::VFTHook(int8_t** vftable)
 		: vftable_(vftable)
 	{
 	}
@@ -20,7 +20,7 @@ namespace hookftw
 	 * @param index index of the function to hook inside the virtual function table (starting at 0)
 	 * @hookedFunction proxy function
 	 */
-	void* VFTHook::Hook(int index, void* hookedFunction)
+	int8_t* VFTHook::Hook(int index, int8_t* hookedFunction)
 	{
 		hookedfuncs_.insert(std::make_pair(index, vftable_[index]));
 
@@ -61,7 +61,7 @@ namespace hookftw
 	*/
 	void VFTHook::Unhook()
 	{
-		for (const std::pair<int, void*> pair : hookedfuncs_)
+		for (const std::pair<int, int8_t*> pair : hookedfuncs_)
 		{
 			DWORD oldProtection;
 			VirtualProtect(&vftable_[pair.first], sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtection);

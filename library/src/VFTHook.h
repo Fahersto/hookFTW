@@ -13,13 +13,13 @@ namespace hookftw
 	class VFTHook
 	{
 	private:
-		void** vftable_;
-		std::map<int, void*> hookedfuncs_;
+		int8_t** vftable_;
+		std::map<int, int8_t*> hookedfuncs_;
 
 	public:
-		VFTHook(void** vftable);
+		VFTHook(int8_t** vftable);
 
-		void* Hook(int index, void* hookedFunction);
+		int8_t* Hook(int index, int8_t* hookedFunction);
 
 		bool Unhook(int index);
 		void Unhook();
