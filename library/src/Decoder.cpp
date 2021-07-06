@@ -69,7 +69,7 @@ namespace hookftw
 	 */
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
-		//https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
+		//For reference see: https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
 		//Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (x64 only)
 		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM && 
 			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table	
@@ -85,7 +85,7 @@ namespace hookftw
 	void RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
 		//TODO check if all types of calls can be relocated
-		//TODO there are for example call instructions that make use of  the ModRM byte
+		//TODO there are for example call instructions that make use of the ModRM byte
 		//TODO Call gate is a problem for now
 
 		//for e8 call use ZydisCalcAbsoluteAddress
@@ -106,12 +106,12 @@ namespace hookftw
 				}
 				else
 				{
-					printf("[Error] - There should be no rip-relative call instruction with a R/M value other than 5\n");
+					printf("[Error] - Decoder - There should be no rip-relative call instruction with a R/M value other than 5\n");
 				}
 			}
 			else
 			{
-				printf("[Error] - There should be no rip-relative call instruction with a mod value other than 0\n");
+				printf("[Error] - Decoder - There should be no rip-relative call instruction with a mod value other than 0\n");
 			}
 		}
 		else
@@ -129,7 +129,7 @@ namespace hookftw
 
 		//the program can return to the return address pushed on the stack (at time of the call) at any time.
 		//if the hook is removed (and therefore the trampoline freed) the return address might not contain valid code --> crash
-		printf("[Warning] - Decoder relocated a call instruction. Unhooking is not safe!\n");
+		printf("[Warning] - Decoder - Relocated a call instruction. Unhooking is not safe!\n");
 	}
 
 	/**
@@ -167,7 +167,7 @@ namespace hookftw
 		rellocatedbytes.push_back(0x0);				//
 
 		rellocatedbytes.insert(rellocatedbytes.end(), (int8_t*)&originalJumpTarget, (int8_t*)&originalJumpTarget + 8); //destination to jump to: 8 Bytes
-		printf("[Info] - Decoder relocated a branch instruction\n");
+		printf("[Info] - Decoder - Relocated a branch instruction\n");
 	}
 
 	/**
@@ -202,7 +202,7 @@ namespace hookftw
 		rellocatedbytes.insert(rellocatedbytes.end(), tmpBuffer, tmpBuffer + instruction.length);
 
 		free(tmpBuffer);
-		printf("[Info] - Decoder rellocated a rip-relative memory instruction\n");
+		printf("[Info] - Decoder - Relocated a rip-relative memory instruction\n");
 	}
 
 	/**
@@ -250,7 +250,7 @@ namespace hookftw
 	 * 
 	 * @return returns bytes of the relocated instructions
 	 */
-	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress)
+	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress, bool restrictedRelocation)
 	{
 		//TODO random constant at random location. This constant changes if changes are made to the trampoline..
 		const int offsetOfRelocatedBytesinTrampoline = 455;
@@ -268,7 +268,7 @@ namespace hookftw
 			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
-				printf("ERROR: decoder could not decode instruction\n");
+				printf("[Error] - Decoder - Could not decode instruction\n");
 				return std::vector<int8_t>();
 			}
 			//the order here matters. We start with most specific relocations. There are for example call instructions that use the ModRM byte and therefore are also rip-relative memory addresses
@@ -284,16 +284,23 @@ namespace hookftw
 			}
 			else if (IsRipRelativeMemoryInstruction(instruction))	 
 			{
+				//restricted relocation is enabled when the trampoline could not be allocated withing +-2GB range
+				//rip-relative memory instructions may not ber able to reach there target address (TODO check this on an instruction based level... there are some cases when this works)
+				if (restrictedRelocation)
+				{
+					printf("[Error] - Decoder - Can't relocate a rip-relative memory access with restricted relocation enabled (trampoline is not in rel32 range). This is currently not supported.\n");
+					return std::vector<int8_t>();
+				}
 				//handle relocation of rip-relative memory addresses (x64 only)
 				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, relocationAddress + relocatedbytes.size(), relocatedbytes);
 			}
 			else if (instruction.mnemonic == ZYDIS_MNEMONIC_XBEGIN)
 			{
-				//XBEGIN causes undefined opcode exception on most computers as intel removed it form the underlying microcode architecture due to security concerns(Zombieload 2 Attack)
+				//XBEGIN causes undefined opcode exception on most computers as intel removed it form the underlying microcode architecture due to security concerns (Zombieload 2 Attack)
 				//and even physically removed support for it on never processors
 				//additionally windows (and linux) allow for disabling tsx support
 				//we expect to never encounter this instruction
-				printf("[ERROR]: decoder encountered XBEGIN instruction which is a relative but unhandled instruction!\n"); 
+				printf("[Error] - Decoder - Encountered XBEGIN instruction which is a relative but unhandled instruction!\n"); 
 				return std::vector<int8_t>();
 			}
 			else
@@ -327,7 +334,7 @@ namespace hookftw
 			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
-				printf("ERROR: decoder could not decode instruction\n");
+				printf("[Error] - Decoder - Could not decode instruction\n");
 				return 0;
 			}
 			byteCount += instruction.length;
@@ -349,7 +356,7 @@ namespace hookftw
 		std::vector<int8_t*> foundInstructions;
 		int offset = 0;
 		ZyanStatus decodeResult = ZYAN_STATUS_FAILED;
-		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
+		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might relocate more.
 		do
 		{
 			ZydisDecodedInstruction instruction;
@@ -358,7 +365,7 @@ namespace hookftw
 			decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
-				printf("ERROR: decoder could not decode instruction\n");
+				printf("[Error] - Decoder - Could not decode instruction\n");
 				offset += instruction.length;
 				continue;
 			}
@@ -391,7 +398,7 @@ namespace hookftw
 			}
 			offset += instruction.length;
 		} while (decodeResult == ZYAN_STATUS_SUCCESS || offset < length);
-		printf("[Warning] - decoder couln't find relative instruction of desired type in %d bytes\n", offset);
+		printf("[Warning] - Decoder - Couldn't find relative instruction of desired type in %d bytes\n", offset);
 		return foundInstructions;
 	}
 
@@ -420,7 +427,7 @@ namespace hookftw
 			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
-				printf("ERROR: decoder could not decode instruction\n");
+				printf("[Error] - Decoder - Could not decode instruction\n");
 				return false;
 			}
 
