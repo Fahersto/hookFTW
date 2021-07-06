@@ -96,7 +96,11 @@ namespace hookftw
 #ifdef _WIN64
 				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
 				trampoline_ = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-				requiredBytes = 14;
+
+
+				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
+				restrictedRelocation_ = true;
+
 				printf("[Warning] - MidfunctionHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
 				return true;
 
@@ -556,7 +560,7 @@ MidfunctionHook::MidfunctionHook()
 		}
 #endif
 
-		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_);
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_, restrictedRelocation_);
 		if (relocatedBytes.empty())
 		{
 			printf("[Error] - MidfunctionHook - Relocation of bytes replaced by hook failed\n");

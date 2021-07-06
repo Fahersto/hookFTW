@@ -44,6 +44,10 @@ namespace hookftw
 
 		int8_t* addressOfRET = nullptr;
 
+		//relocation can be caused by inability to allocate the trampoline within +-2GB range of the hook address
+		//in x64 this can be solved using an absolute JMP, but we then can no longer relocate rip-relative memory accesses
+		bool restrictedRelocation_ = false;
+
 		bool AllocateTrampoline(int8_t* hookAddress);
 		bool AllocateTrampolineWithinBounds(int8_t* hookAddress, int64_t lowestRelativeAddress, int64_t highestRelativeAddress);
 		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx));
