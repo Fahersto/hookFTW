@@ -44,7 +44,8 @@ namespace hookftw
 
 		int8_t* addressOfRET = nullptr;
 
-		void AllocateTrampoline(int8_t* hookAddress);
+		bool AllocateTrampoline(int8_t* hookAddress);
+		bool AllocateTrampolineWithinBounds(int8_t* hookAddress, int64_t lowestRelativeAddress, int64_t highestRelativeAddress);
 		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx));
 
 		
@@ -165,7 +166,7 @@ namespace hookftw
 	  */
 	struct context
 	{
-		Hook* hook;
+		MidfunctionHook* hook;
 		//registers registers; we do not use the struct here because it is aligned at the start
 		int32_t esp;
 		int32_t eax;

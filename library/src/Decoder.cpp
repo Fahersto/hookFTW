@@ -396,7 +396,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Calculates the lowest and highest realtive accesses. These have to be taken into consideration when creating the trampoline
+	 * Calculates the lowest and highest rip-relative memory access. These have to be taken into consideration when creating the trampoline
 	 * as we can only relocate rip-relative intructions if they can access their original target with "relocated rip" + rel32
 	 *
 	 * @param sourceAddress start address of instructions to be examined
@@ -405,7 +405,7 @@ namespace hookftw
 	 * @param highestAddress [out] highest relative access found
 	 * @return returns true of the bounds could be calculated. False otherwhise.
 	 */
-	bool Decoder::CalculateBoundsOfRelativeAddresses(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress)
+	bool Decoder::CalculateRipRelativeMemoryAccessBounds(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress)
 	{
 		int byteCount = 0;
 		uint64_t tmpLowestAddress = 0xffffffffffffffff;
@@ -424,8 +424,8 @@ namespace hookftw
 				return false;
 			}
 
-			//skip non relative instructions
-			if (!(instruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE))
+			//skip non rip-relative instructions
+			if (!IsRipRelativeMemoryInstruction(instruction)) 
 			{
 				byteCount += instruction.length;
 				continue;
@@ -433,7 +433,6 @@ namespace hookftw
 
 			//calculate the absolute address of the rip-relative address. Note: ZydisCalcAbsoluteAddress does not calculate addresses for rip-relative instructions
 			const int64_t absoluteTargetAddress = (int64_t)currentAddress + instruction.length + instruction.raw.disp.value;
-
 
 			if (absoluteTargetAddress < tmpLowestAddress)
 			{
