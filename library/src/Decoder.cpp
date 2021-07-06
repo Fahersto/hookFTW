@@ -431,9 +431,9 @@ namespace hookftw
 				continue;
 			}
 
-			//calculate the absolute target address of the relative instruction
-			ZyanU64 absoluteTargetAddress;
-			ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)currentAddress, &absoluteTargetAddress);
+			//calculate the absolute address of the rip-relative address. Note: ZydisCalcAbsoluteAddress does not calculate addresses for rip-relative instructions
+			const int64_t absoluteTargetAddress = (int64_t)currentAddress + instruction.length + instruction.raw.disp.value;
+
 
 			if (absoluteTargetAddress < tmpLowestAddress)
 			{
