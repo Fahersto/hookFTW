@@ -5,9 +5,6 @@
 #include <Decoder.h>
 
 
-
-
-
 //64bit
 const int callsLength = 40;
 int8_t calls[callsLength] =
@@ -45,6 +42,19 @@ int8_t loops[loopLength] =
 	0xE0, 0x11	//LOOPNE rel8
 };
 
+const int ripRelativeLength = 36;
+int8_t ripRelative[ripRelativeLength] =
+{
+	0x29, 0x2D, 0xF5, 0xE9, 0x28, 0x7C,							//sub DWORD PTR [rip+0x7c28e9f5],ebp
+	0xC7, 0x05, 0xF3, 0xCE, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,	//mov DWORD PTR [rip+0xcef3],0x1
+	0x89, 0x05, 0x90, 0x97, 0x00, 0x00,							//mov DWORD PTR [rip+0x9790],eax
+	0x48, 0x8D, 0x0D, 0x79, 0x89, 0x00, 0x00,					//lea rcx,[rip+0x8979]
+	0x48, 0x3B, 0x0D, 0xE1, 0x9A, 0x00, 0x00					//cmp rcx,QWORD PTR [rip+0x9ae1]
+};
+
+//We use this here to be in +-2 GB range without having to deal with trampolien allocation
+const int relocatedBytesLength = 200;
+int8_t relocatedBytes[relocatedBytesLength];
 
 void TestRelocation(int8_t* instructions, int instructionsLength)
 {
@@ -53,19 +63,16 @@ void TestRelocation(int8_t* instructions, int instructionsLength)
 	//Print original instructions
 	disassembler.Analyse(instructions, instructionsLength);
 
-	//Allocate space to relocate instructions to
-	int8_t* trampoline = (int8_t*)VirtualAlloc(NULL, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
-	hookftw::Decoder decoder;
-	
 	//relocate instructions
-	auto relocatedInstructions = decoder.Relocate(instructions, instructionsLength, trampoline);
+	hookftw::Decoder decoder;
+	auto relocatedInstructions = decoder.Relocate(instructions, instructionsLength, relocatedBytes);
 
-	//copy relocated instructions to trampoline
-	memcpy(trampoline, relocatedInstructions.data(), relocatedInstructions.size());
+	memcpy(relocatedBytes, relocatedInstructions.data(), relocatedInstructions.size());
 
 	//Print relocation result
-	disassembler.Analyse(trampoline, relocatedInstructions.size());
+	disassembler.Analyse(relocatedBytes, relocatedInstructions.size());
+
+	memset(relocatedBytes, 0, relocatedBytesLength);
 }
 
 
@@ -81,5 +88,9 @@ int main()
 
 	printf("~~~ Testing relocation of LOOPcc ~~~ \n");
 	TestRelocation(loops, loopLength);
+	printf("\n");
+
+	printf("~~~ Testing relocation of RIP-relative memory accesses ~~~ \n");
+	TestRelocation(ripRelative, ripRelativeLength);
 	printf("\n");
 }
