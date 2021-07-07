@@ -157,7 +157,7 @@ namespace hookftw
 
 		const int elementSizeInBytes = instruction.operands[0].element_size / 8;
 		//suppport jcc rel8, jcc rel16, jcc rel32. JCC always has the offset in its first operand. Fill remmaining bytes with '0'
-		for (int i = 0; i < elementSizeInBytes - 1; i++)
+		for (int i = 1; i < elementSizeInBytes - 1; i++)
 		{
 			rellocatedbytes[rellocatedbytes.size() - i] = 0x0;
 		}
