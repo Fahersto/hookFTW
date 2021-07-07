@@ -77,6 +77,10 @@ namespace hookftw
 	}
 #endif
 
+	VEHHook::VEHHook()
+	{
+	}
+
 	void VEHHook::Hook(int8_t* originalFunction, int8_t* hookedFunction)
 	{
 		MEMORY_BASIC_INFORMATION mbiOriginal;
