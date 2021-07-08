@@ -84,25 +84,16 @@ namespace hookftw
 	 */
 	void RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
-		//TODO check if all types of calls can be relocated
-		//TODO there are for example call instructions that make use of the ModRM byte
-		//TODO Call gate is a problem for now
-
-		//for e8 call use ZydisCalcAbsoluteAddress
-		//copy all other calls with the expection of
-		//	- Mod 00, RM 101
-		//  - these only occur with digit /2 & /3, so mod/rm values of 0x15 & 0x1D
-		//		- from looking at the table these always seems to derefernce the address
 		ZyanU64 originalJumpTarget;
 		if (instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM)
 		{
 			if (instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5)
 			{
+#ifdef _WIN64
 				//disp32 see ModR/M table (intel manual)
 				ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 
-				//ff 15 11 22 33 44  -->  call   QWORD PTR [rip+0x44332211]
-				//BIG TODO. WHY IS IS NOT PROBLEMATIC TO USE RAX?
+				// we can use rax here as it has not to be preserved in function calls
 				const int rellocatedCallInstructionsLength = 12;
 				int8_t rellocatedCallInstructions[rellocatedCallInstructionsLength] = {
 					0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,			//movabs rax, 0x1122334455667788. 
@@ -110,6 +101,10 @@ namespace hookftw
 				};
 				*(uint64_t*)&rellocatedCallInstructions[2] = originalJumpTarget;
 				rellocatedbytes.insert(rellocatedbytes.end(), rellocatedCallInstructions, rellocatedCallInstructions + rellocatedCallInstructionsLength);
+#elif _WIN32
+				//Just copy original call instruction. There is no rip-relative addressing in 32 bit. The displacement is relative to 0.
+				rellocatedbytes.insert(rellocatedbytes.end(), instructionAddress, instructionAddress + instruction.length);
+#endif 
 			}
 			else
 			{
@@ -120,21 +115,30 @@ namespace hookftw
 		else
 		{
 			//e8 calls.. CALL rel16, CALL rel32,
-			//9a calls.. CALL ptr16:16, CALL ptr16:32. TODO show error in this case
+			//9a calls.. CALL ptr16:16, CALL ptr16:32 are not handled (no support for 16 bit architecture)
 			ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 
+#ifdef _WIN64
 			const int rellocatedCallInstructionsLength = 12;
-
-			//BIG TODO. WHY IS IS NOT PROBLEMATIC TO USE RAX?
+			// we can use rax here as it has not to be preserved in function calls
 			int8_t rellocatedCallInstructions[rellocatedCallInstructionsLength] = {
 				0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,			//movabs rax, 0x1122334455667788. 
 				0xFF, 0xD0															//call   rax
 			};
 			*(uint64_t*)&rellocatedCallInstructions[2] = originalJumpTarget;
 			rellocatedbytes.insert(rellocatedbytes.end(), rellocatedCallInstructions, rellocatedCallInstructions + rellocatedCallInstructionsLength);
+#elif _WIN32
+			const int rellocatedCallInstructionsLength = 7;
+			// we can use eax here as it has not to be preserved in function calls
+			int8_t rellocatedCallInstructions[rellocatedCallInstructionsLength] = {
+				0xB8, 0x44, 0x33, 0x22, 0x11,			//mov  eax,0x11223344
+				0xFF, 0xD0								//call eax
+			};
+			*(uint32_t*)&rellocatedCallInstructions[1] = originalJumpTarget;
+			rellocatedbytes.insert(rellocatedbytes.end(), rellocatedCallInstructions, rellocatedCallInstructions + rellocatedCallInstructionsLength);
+#endif
 		}
 		
-
 		//the program can return to the return address pushed on the stack (at time of the call) at any time.
 		//if the hook is removed (and therefore the trampoline freed) the return address might not contain valid code --> crash
 		printf("[Warning] - Decoder - Relocated a call instruction. Unhooking is not safe!\n");
