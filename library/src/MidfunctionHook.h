@@ -48,6 +48,9 @@ namespace hookftw
 		//in x64 this can be solved using an absolute JMP, but we then can no longer relocate rip-relative memory accesses
 		bool restrictedRelocation_ = false;
 
+		//length of the static part of the trampoline. This is required to know where relocation starts when relocating rip-relative memoy accesses
+		int32_t staticTrampolineLength_ = 0;
+
 		bool AllocateTrampoline(int8_t* hookAddress);
 		bool AllocateTrampolineWithinBounds(int8_t* hookAddress, int64_t lowestRelativeAddress, int64_t highestRelativeAddress);
 		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx));
