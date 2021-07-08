@@ -4,11 +4,8 @@
 #include <cstdio>
 #include <string>
 
-
-
 #include <Zydis/Zydis.h>
 #include <Zydis/DecoderTypes.h>
-
 
 namespace hookftw
 {
@@ -39,8 +36,14 @@ namespace hookftw
 		// Initialize decoder context
 		ZydisDecoder decoder;
 
-		//TODO 32 bit mode? zyrex angucken
-		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
+		#ifdef _WIN64
+				ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
+		#elif _WIN32
+				ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_ADDRESS_WIDTH_32);
+		#else
+				printf("[Error] - Disassembler - Unsupported architecture\n");
+		#endif
+		
 
 
 		// Loop over the instructions in our buffer.
