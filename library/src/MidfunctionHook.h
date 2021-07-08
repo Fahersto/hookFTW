@@ -20,41 +20,40 @@ namespace hookftw
 	 */
 	class MidfunctionHook
 	{
-		//bytes overwritten by placing the detour
+		// bytes overwritten by placing the detour
 		int8_t* originalBytes_ = nullptr;
 
-		//location where hook is placed
+		// location where hook is placed
 		int8_t* sourceAddress_ = nullptr;
 
-		//contrains overwritten instructions
+		// contrains overwritten instructions
 		int8_t* trampoline_ = nullptr;
 
-		//contains the address after the trampoline_ stub. starts with the rellocated origin instruction.
+		// contains the address after the trampoline_ stub. starts with the rellocated origin instruction.
 		int8_t* addressToCallFunctionWithoutHook_= nullptr;
 
-		//contains the address to which the trampoline_ returns. This can be used to skip the original call for example.
+		// contains the address to which the trampoline_ returns. This can be used to skip the original call for example.
 		int64_t returnAddressFromTrampoline_ = NULL;
 
-		//number of bytes to overwrite (don't cut instructions in half)
+		// number of bytes to overwrite (don't cut instructions in half)
 		int hookLength_ = NULL;
 
-		//rax is used to change the location to jump back
+		// rax is used to change the location to jump back
 		int64_t savedRax_ = NULL;
 		int64_t originalRsp_ = NULL;
 
 		int8_t* addressOfRET = nullptr;
 
-		//relocation can be caused by inability to allocate the trampoline within +-2GB range of the hook address
-		//in x64 this can be solved using an absolute JMP, but we then can no longer relocate rip-relative memory accesses
+		// relocation can be caused by inability to allocate the trampoline within +-2GB range of the hook address
+		// in x64 this can be solved using an absolute JMP, but we then can no longer relocate rip-relative memory accesses
 		bool restrictedRelocation_ = false;
 
-		//length of the static part of the trampoline. This is required to know where relocation starts when relocating rip-relative memoy accesses
+		// length of the static part of the trampoline. This is required to know where relocation starts when relocating rip-relative memoy accesses
 		int32_t staticTrampolineLength_ = 0;
 
 		bool AllocateTrampoline();
 		bool AllocateTrampolineWithinBounds(int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress);
 		void GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx));
-
 		
 	public:
 		int8_t* GetCallableVersionOfOriginal();
@@ -64,7 +63,7 @@ namespace hookftw
 		void Unhook();
 
 
-		//TODO this should not be accessible here. But we need to get here from context
+		// TODO this should not be accessible here. But we need to get here from context
 		void ChangeReturn(int64_t returnValue);
 		void SkipOriginalFunction();
 	};
@@ -84,7 +83,7 @@ namespace hookftw
 	struct context
 	{
 		MidfunctionHook* hook;
-		//registers registers; we do not use the struct here because it is aligned at the start
+		// registers registers; we do not use the struct here because it is aligned at the start
 		int64_t rsp;
 		int64_t rax;
 		int64_t rcx;
@@ -102,7 +101,7 @@ namespace hookftw
 		int64_t r14;
 		int64_t r15;
 
-		//why not use __m128? because it uses 16 byte alignment
+		// why not use __m128? because it uses 16 byte alignment
 		int8_t xmm0[16];
 		int8_t xmm1[16];
 		int8_t xmm2[16];
@@ -131,7 +130,6 @@ namespace hookftw
 				rsp, rax, rcx, rdx, rbx, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15, rflags);
 		}
 		
-
 		/**
 		 * Changes the address to which is returned to after the hook (usually the hooked function).
 		 * \warning Changing the control flow of a function is very likely to produce crashes if not done with caution.
@@ -174,7 +172,7 @@ namespace hookftw
 	struct context
 	{
 		MidfunctionHook* hook;
-		//registers registers; we do not use the struct here because it is aligned at the start
+		// registers registers; we do not use the struct here because it is aligned at the start
 		int32_t esp;
 		int32_t eax;
 		int32_t ecx;
@@ -184,7 +182,7 @@ namespace hookftw
 		int32_t esi;
 		int32_t edi;
 
-		//why not use __m128? because it uses 16 byte alignment
+		// why not use __m128? because it uses 16 byte alignment
 		int8_t xmm0[16];
 		int8_t xmm1[16];
 		int8_t xmm2[16];

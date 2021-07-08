@@ -11,16 +11,16 @@ namespace hookftw
 	 */
 	class Detour
 	{
-		//bytes overwritten by placing the detour
+		// bytes overwritten by placing the detour
 		int8_t* originalBytes_;
 
-		//location where hook is placed
+		// location where hook is placed
 		int8_t* sourceAddress_;
 
-		//runs overwritten instructions
+		// runs overwritten instructions
 		int8_t* trampoline_;
 
-		//number of bytes to overwrite (don't cut instructions in half)
+		// number of bytes to overwrite (don't cut instructions in half)
 		int hookLength_;
 
 	public:

@@ -9,7 +9,7 @@ namespace hookftw
 	enum class RelativeInstruction
 	{
 		CALL,
-		BRANCH, //jcc, loopcc
+		BRANCH, // jcc, loopcc
 		RIP_RELATIV
 	};
 	class Instruction;
@@ -21,8 +21,8 @@ namespace hookftw
 	 */
 	class Decoder
 	{
-		//we use a void pointer here since we can't forward declare the ZydisDecoder c typedef struct
-		//we do not want to include the zydis headers here since we then have to link against zydis (and not only hookftw) when using hookftw
+		// we use a void pointer here since we can't forward declare the ZydisDecoder c typedef struct
+		// we do not want to include the zydis headers here since we then have to link against zydis (and not only hookftw) when using hookftw
 		static void* _zydisDecoder;
 
 		const int MAXIMUM_INSTRUCTION_LENGTH = 15;
