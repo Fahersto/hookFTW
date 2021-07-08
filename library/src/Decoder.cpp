@@ -203,10 +203,8 @@ namespace hookftw
 
 		const int32_t relocatedRelativeAddress = absoluteAddress - relocatedInstructionAddress - instruction.length;
 
-		//write relocated realtive address to the relocated instrucions displacement
+		//write relocated relative address to the relocated instrucions displacement
 		*(int32_t*)&tmpBuffer[instruction.raw.disp.offset] = relocatedRelativeAddress;
-
-		//TODO check if we could sucessfully rellocate (if trampoline is too far away rel32 may not be enough)
 
 		//add bytes of relocated instructions to relocated instuctions
 		rellocatedbytes.insert(rellocatedbytes.end(), tmpBuffer, tmpBuffer + instruction.length);
@@ -229,27 +227,13 @@ namespace hookftw
 #elif _WIN32
 			ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_ADDRESS_WIDTH_32);
 #else
-			printf("Error: Unsupported decoder architecture\n");
+			printf("[Error] - Decoder - Unsupported architecture\n");
 #endif
 		}
 	}
 
-	/* Instructions that need to be rellocated
-	 * 32bit:
-		- call
-		- jcc
-		- loopcc
-		- XBEGIN //not handled
-
-	   64bit:
-		-call
-		- jcc
-		- loopcc
-		- XBEGIN //not handled
-		- instructions that use ModR/M addressing (rip relative)
-	 */
 	 /**
-	  * Creates a vector containing rellocated instructions. These instructions are not yet written to the targetAddress.
+	  * Creates a vector containing relocated instructions. These instructions are not yet written to the targetAddress.
 	  * We need need to know the targetAddress to relocate rip-relative instructions.
 	  * We do generate a vector<int8_t> of relocated instructions instead of writing them directly to the target address
 	  * to first check if the entire relocation succeeds before writing to the target
@@ -262,9 +246,21 @@ namespace hookftw
 	  */
 	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress, bool restrictedRelocation)
 	{
-		//TODO random constant at random location. This constant changes if changes are made to the trampoline..
-		const int offsetOfRelocatedBytesinTrampoline = 455;
-		int8_t* relocationAddress = targetAddress + offsetOfRelocatedBytesinTrampoline;
+		/* Instructions that need to be relocated
+		  32bit:
+			- call
+			- jcc
+			- loopcc
+			- XBEGIN //not handled
+
+		   64bit:
+			-call
+			- jcc
+			- loopcc
+			- XBEGIN //not handled
+			- rip-relative memory access (ModR/M addressing)
+		*/
+
 		std::vector<int8_t> relocatedbytes;
 
 		int amountOfBytesRellocated = 0;
@@ -281,7 +277,7 @@ namespace hookftw
 				printf("[Error] - Decoder - Could not decode instruction\n");
 				return std::vector<int8_t>();
 			}
-			//the order here matters. We start with most specific relocations. There are for example call instructions that use the ModRM byte and therefore are also rip-relative memory addresses
+			//the order here matters. We start with more specific relocations. There are for example call instructions that use rip-relative memory accesses
 			if (IsCallInstruction(instruction))
 			{
 				//handle relocation of call instructions
@@ -295,14 +291,14 @@ namespace hookftw
 			else if (IsRipRelativeMemoryInstruction(instruction))
 			{
 				//restricted relocation is enabled when the trampoline could not be allocated withing +-2GB range
-				//rip-relative memory instructions may not ber able to reach there target address (TODO check this on an instruction based level... there are some cases when this works)
+				//rip-relative memory instructions may not be able to reach their target address (TODO check this on an instruction based level... there are some cases when this works)
 				if (restrictedRelocation)
 				{
 					printf("[Error] - Decoder - Can't relocate a rip-relative memory access with restricted relocation enabled (trampoline is not in rel32 range). This is currently not supported.\n");
 					return std::vector<int8_t>();
 				}
 				//handle relocation of rip-relative memory addresses (x64 only)
-				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, relocationAddress + relocatedbytes.size(), relocatedbytes);
+				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, targetAddress + relocatedbytes.size(), relocatedbytes);
 			}
 			else if (instruction.mnemonic == ZYDIS_MNEMONIC_XBEGIN)
 			{
@@ -315,7 +311,7 @@ namespace hookftw
 			}
 			else
 			{
-				//if its just copy the original bytes
+				//instruction does not need to be modified. Just copy the original Bytes.
 				relocatedbytes.insert(relocatedbytes.end(), currentAddress, currentAddress + instruction.length);
 			}
 			amountOfBytesRellocated += instruction.length;
@@ -335,7 +331,7 @@ namespace hookftw
 	{
 		int byteCount = 0;
 
-		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
+		//we will atleast get "length" bytes. To avoid splitting an instruction we might get more.
 		while (byteCount < length)
 		{
 			ZydisDecodedInstruction instruction;
@@ -396,7 +392,7 @@ namespace hookftw
 				}
 				break;
 			case RelativeInstruction::RIP_RELATIV:
-				if (IsRipRelativeMemoryInstruction(instruction))
+				if (IsRipRelativeMemoryInstruction(instruction) && instruction.mnemonic != ZYDIS_MNEMONIC_CALL) //do not show calls here even though there are rip-relative calls
 				{
 					typeFound = true;
 				}
