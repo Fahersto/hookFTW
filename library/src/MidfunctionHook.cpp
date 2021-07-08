@@ -13,82 +13,35 @@ namespace hookftw
 	/**
 	 * Attempts to allocate a trampoline_ within +-2gb range of the hook so we only need 5 bytes to hook (jmp rel32) instead of 14 (jmp[rip+0] int64_t, only in x64)
 	 */
-	bool MidfunctionHook::AllocateTrampoline(int8_t* hookAddress)
+	bool MidfunctionHook::AllocateTrampoline()
 	{
 		// We attempt to use a rel32 JMP as this makes relocation easier (RIP-relative memory accesses)
-		int requiredBytes = 5;
 		const int32_t signedIntMaxValue = 0x7fffffff;
 
-		//allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
+		// allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo(&systemInfo);
-		int allocationAttemps = 0;
-		int iterations = 0;
+		int64_t allocationAttempts = 0;
+
+		// calculate the lowest and highest address than can be reached by a jmp rel32 when placing it at the hookAddress
+		int8_t* lowestAddressReachableByFiveBytesJump = sourceAddress_ - signedIntMaxValue + 5;
+		if (lowestAddressReachableByFiveBytesJump < 0)
+		{
+			lowestAddressReachableByFiveBytesJump = 0;
+		}
 
 		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range\n");
 		while (!trampoline_)
 		{
-			iterations++;
-			//TODO is this calculation correct?
-			int8_t* targetAddress = sourceAddress_ + signedIntMaxValue - (allocationAttemps++ * systemInfo.dwPageSize);
-			if (targetAddress > 0)
+			// start with the highest possible address and go down by one pageSize for every attempt. VirtualAlloc rounds down to nearest multiple of allocation granularity.
+			// we start by substracting 1 page (++allocationAttempts) to account for VirtualAlloc rounding down the target address to the next page boundary
+			int8_t* targetAddress = sourceAddress_ + signedIntMaxValue + 5 - (++allocationAttempts * systemInfo.dwPageSize);
+
+			// check if the target address can still be reached with rel32. If the target address is too low, we failed to allocate it withing JMP rel32 range.
+			if (targetAddress >= lowestAddressReachableByFiveBytesJump)
 			{
-				//Try to allocate trampoline_ within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
-				trampoline_ = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-			}
-			else
-			{
-				#ifdef _WIN64
-				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline_ = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-				requiredBytes = 14;
-				printf("[Warning] - MidfunctionHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
-				return true;
-				
-				#elif _WIN32
-				//We currently have no way to deal with situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
-				return false;
-				#endif
-
-				//This should not be reached
-				return false;
-			}
-		}
-		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %d attempts)\n", trampoline_, iterations);
-		return true;
-	}
-
-	/**
-	 * Attempts to allocate a trampoline_ within +-2gb range with respect to rip-relative memory accesses.
-	 */
-	bool MidfunctionHook::AllocateTrampolineWithinBounds(int8_t* hookAddress, int64_t lowestRelativeAddress, int64_t highestRelativeAddress)
-	{
-		int requiredBytes = 5;
-		const int32_t signedIntMaxValue = 0x7fffffff;
-
-		//allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
-		int allocationAttemps = 0;
-		int iterations = 0;
-
-		// The size of the static part of the trampoline is 467 Bytes. Additionally relocated Bytes are appended to the trampoline. The length of these instructions depends on the instructions relocated.
-		// Relocated instructions can be longer than the original ones. At the time of writing this the worst case is jcc from 2 Bytes to 18 Bytes when relocated.
-		// The value here is just an upper bound that allows to double the size of the trampoline
-		const int trampolineLengthUpperBound = 1000;
-
-		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range of [%llx, %llx] with a trampoline maximum size of %d\n", lowestRelativeAddress, highestRelativeAddress, trampolineLengthUpperBound);
-		while (!trampoline_)
-		{
-			iterations++;
-			
-			// Allocation attemps are started from the highest possible address to the lowest.
-			int8_t* targetAddress = (int8_t*)highestRelativeAddress + signedIntMaxValue - 1000 - (allocationAttemps++ * systemInfo.dwPageSize);
-
-			if (targetAddress > (int8_t*)(lowestRelativeAddress - signedIntMaxValue))
-			{
-				//Try to allocate trampoline_ within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
-				//If the call with this target address fails we keep trying
+				// attempt to allocate the trampoline. If we fail, we try again on the next loop iteration.
+				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
 				trampoline_ = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 			}
 			else
@@ -96,7 +49,6 @@ namespace hookftw
 #ifdef _WIN64
 				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
 				trampoline_ = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
 
 				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				restrictedRelocation_ = true;
@@ -112,8 +64,94 @@ namespace hookftw
 				//This should not be reached
 				return false;
 			}
+			}
+		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %d attempts)\n", trampoline_, allocationAttempts);
+		return true;
 		}
-		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %d attempts)\n", trampoline_, iterations);
+
+	/**
+	 * Attempts to allocate a trampoline_ within +-2gb range with respect to rip-relative memory accesses.
+	 */
+	bool MidfunctionHook::AllocateTrampolineWithinBounds(int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress)
+	{
+		const int32_t signedIntMaxValue = 0x7fffffff;
+
+		//allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
+		SYSTEM_INFO systemInfo;
+		GetSystemInfo(&systemInfo);
+		int64_t allocationAttempts = 0;
+
+		// The size of the static part of the trampoline is 467 Bytes. Additionally relocated Bytes are appended to the trampoline. The length of these instructions depends on the instructions relocated.
+		// Relocated instructions can be longer than the original ones. At the time of writing this the worst case is jcc from 2 Bytes to 18 Bytes when relocated.
+		// The value here is just an upper bound that allows to double the size of the trampoline
+		const int trampolineLengthUpperBound = 1000;
+
+		// calculate the lowest and highest address than can be reached by a jmp rel32 when placing it at the hookAddress
+		int8_t* lowestAddressReachableByFiveBytesJump = sourceAddress_ - signedIntMaxValue + 5;
+		if (lowestAddressReachableByFiveBytesJump < 0)
+		{
+			lowestAddressReachableByFiveBytesJump = 0;
+		}
+
+		int8_t* highestAddressReachableByFiveBytesJump = sourceAddress_ + signedIntMaxValue + 5;
+
+		//TODO respect 
+		int8_t* lowestAddressThatCanReachHighestRipRelativeAccess = (int8_t*)highestRipRelativeMemoryAddress - signedIntMaxValue + 5;
+
+		// calculate the highest address that can still reach the lowest rip-relative access
+		int8_t* highestAddressThatCanreachLowestRipRelativeAccess = (int8_t*)lowestRipRelativeMemoryAccess + signedIntMaxValue - 5;
+
+
+		// we want to start allocation attempts with the highest address that can reach the lowest rip-relative memory access and is reachable with jmp rel32 from the hook address
+		int8_t* initialTargetAddress = highestAddressThatCanreachLowestRipRelativeAccess;
+		if (initialTargetAddress > highestAddressReachableByFiveBytesJump)
+		{
+			initialTargetAddress = highestAddressReachableByFiveBytesJump;
+		}
+
+		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range of [%llx, %llx] with a trampoline maximum size of %d\n", lowestRipRelativeMemoryAccess, highestRipRelativeMemoryAddress, trampolineLengthUpperBound);
+		while (!trampoline_)
+		{
+			// Allocation attempts are started from the highest possible address to the lowest. We substract dwPageSize to account for VirtualAlloc rounding down the target address to the next page boundary. 
+			// start with highest address that can both: 
+			// - reach lowest RIP-relative
+			// - can be reached by jmp rel32
+			int8_t* targetAddress = initialTargetAddress - trampolineLengthUpperBound - (++allocationAttempts * systemInfo.dwPageSize);
+
+			// Check if we are still high enough
+			// we know we failed to allocate with rel32 when one of these statements is true:
+			// - address is to low to be reached by rel32
+			// - address is to low to reach highestRipRelativeMemoryAccess
+			if (!(targetAddress < lowestAddressReachableByFiveBytesJump) &&
+				!(targetAddress < lowestAddressThatCanReachHighestRipRelativeAccess))
+			{
+				// try to allocate trampoline_ within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
+				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
+				// if the call with this target address fails we keep trying
+				trampoline_ = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+			}
+			else
+			{
+#ifdef _WIN64
+				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
+				trampoline_ = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+
+				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
+				restrictedRelocation_ = true;
+
+				printf("[Warning] - MidfunctionHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
+				return true;
+
+#elif _WIN32
+				//We currently have no way to deal with this situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
+				return false;
+#endif
+
+				//This should not be reached
+				return false;
+			}
+		}
+		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %d attempts)\n", trampoline_, allocationAttempts);
 		return true;
 	}
 
@@ -136,13 +174,23 @@ namespace hookftw
 		const int saveRspAddress = 209;
 		const int restoreRspAddress = 243;
 
-		//5 bytes for jmp rel32
-		//14 bytes are required to place JMP[rip+0x] 0x1122334455667788
-		//TODO flag for when we need 14 bytes (because trampoline out of range)
-		const int bytesRequiredForPlacingHook = 5;
-		
-		assert(hookLength >= bytesRequiredForPlacingHook); 
-		
+		int bytesRequiredForPlacingHook = 0;
+
+		//restrictedRelocation_ is true when the trampoline could not be allocated withing +-2GB range
+		if (restrictedRelocation_)
+		{
+			//14 bytes are required to place JMP[rip+0x] 0x1122334455667788
+			bytesRequiredForPlacingHook = 14;
+		}
+		else
+		{
+			//5 bytes for jmp rel32
+			bytesRequiredForPlacingHook = 5;
+		}
+
+		//ensure we got the hooklength needed to place the required jump
+		assert(hookLength >= bytesRequiredForPlacingHook);
+
 		//1. save xmm registers
 		//2. save general purpose registers
 		//3. align the stack to 16 bytes
@@ -207,7 +255,7 @@ namespace hookftw
 
 			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
 			0x50,														//push	 rax
-			
+
 			0x48, 0x89, 0xE1,											//mov    rcx, rsp					//make first argument point at the stack
 			0x48, 0xB8, 88, 77, 66, 55, 44, 33, 22, 11,					//mov	 rax, addressOfLocal		//save rsp because we don't know if we substract bytes to get the correct alignment before the call
 			0x48, 0x89, 0x20,											//mov	 [rax], rsp
@@ -267,7 +315,7 @@ namespace hookftw
 			0x48, 0x83, 0xC4, 0x10,										//add    rsp,0x20
 			0x9D														//popfq
 		};
-		
+
 		//used to the controll flow after the hook can be changed (for example skip oroginal call)
 		int8_t controllFlowStub[controlFlowStubLength] = {
 			0x48, 0xA3, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs ds:0x1122334455667788,rax
@@ -282,11 +330,8 @@ namespace hookftw
 		originalBytes_ = new int8_t[hookLength];
 		memcpy(originalBytes_, sourceAddress, hookLength);
 
-		//allocate space for stub + space for RELLOCATED bytes + jumpback
-		//trampoline_ = (int8_t*)VirtualAlloc(NULL, stubLength + relocatedBytes.size() + controlFlowStubLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-		
-		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + stubLength +  controlFlowStubLength);
-		
+		returnAddressFromTrampoline_ = (int64_t)(trampoline_ + stubLength + controlFlowStubLength);
+
 		//insert address of the value to return code execution after hook
 		*(int64_t*)&controllFlowStub[12] = (int64_t)&returnAddressFromTrampoline_;
 
@@ -295,44 +340,56 @@ namespace hookftw
 
 		//copy stub to trampoline_
 		memcpy(trampoline_, stub, stubLength);
-	
+
 		//save address after the stub so we can call the function without running into our hook again
 		addressToCallFunctionWithoutHook_ = &trampoline_[stubLength + controlFlowStubLength];
 
 		//copy controllFlow stub
 		memcpy(&trampoline_[stubLength], controllFlowStub, controlFlowStubLength);
-		
+
 		//copy relocated original bytes to trampoline
 		memcpy(&trampoline_[stubLength + controlFlowStubLength], relocatedBytes.data(), relocatedBytes.size());
 
-		//in x64bit we always do an absoolute 8 byte jump. This way the trampoline does not need to be in +-2bg range.
+		//in x64bit we always do an absolute 8 byte jump. This way the trampoline does not need to be in +-2bg range.
 		//In such cases relocation of rip-relative instructions is not supported
 		const int stubJumpBackLength = 14;
 		int8_t jmpBackStub[stubJumpBackLength] = {
 			0xff, 0x25, 0x0, 0x0, 0x0,0x0,					//JMP[rip + 0]
 			0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	//absolute address of jump
 		};
-		*(int64_t*)&jmpBackStub[6] = (int64_t )&sourceAddress_[hookLength];
+
+		//write jump from trampoline_ to original code
+		*(int64_t*)&jmpBackStub[6] = (int64_t)&sourceAddress_[hookLength];
 		memcpy(&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()], jmpBackStub, stubJumpBackLength);
-		
+
 		//insert address of proxy function to call instruction
 		*(int64_t*)&trampoline_[thisAddress] = (int64_t)this;
 		*(int64_t*)&trampoline_[proxyFunctionAddressIndex] = (int64_t)proxy;
 		*(int64_t*)&trampoline_[saveRspAddress] = (int64_t)&originalRsp_;
 		*(int64_t*)&trampoline_[restoreRspAddress] = (int64_t)&originalRsp_;
 
-		//write jump from trampoline_ to original code
-		//*(int64_t*)&trampoline_[stubLength + rellocatedBytesLength + 6] = (int64_t)&sourceAddress_[hookLength];
-
 		//make page of original code writeable
 		DWORD pageProtection;
 		VirtualProtect(sourceAddress, hookLength, PAGE_READWRITE, &pageProtection);
 
-		//write JMP from original code to trampoline_
-		sourceAddress[0] = 0xe9;										//opcodes = JMP rel32
-		*(uint32_t*)(&sourceAddress[1]) = (int32_t)((int64_t)trampoline_ - (int64_t)sourceAddress - 5);
+		if (restrictedRelocation_)
+		{
+			const int stubJumpToTrampolineLength = 14;
+			int8_t jmpToTrampolineStub[stubJumpToTrampolineLength] = {
+				0xff, 0x25, 0x0, 0x0, 0x0,0x0,					//JMP[rip + 0]
+				0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	//absolute address of jump
+			};
+			*(int64_t*)&jmpToTrampolineStub[6] = (int64_t)trampoline_;
+			memcpy(sourceAddress, jmpToTrampolineStub, stubJumpToTrampolineLength);
+		}
+		else
+		{
+			//write JMP from original code to trampoline_
+			sourceAddress[0] = 0xe9;												//opcodes = JMP rel32
+			*(uint32_t*)(&sourceAddress[1]) = (int32_t)((int64_t)trampoline_ - (int64_t)sourceAddress - 5);
+		}
 
-		//NOP left over bytes
+		//NOP left over bytes to improve readability of resulting assembly
 		for (int i = bytesRequiredForPlacingHook; i < hookLength; i++)
 		{
 			sourceAddress[i] = 0x90;
@@ -342,171 +399,177 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
 #elif _WIN32
-void MidfunctionHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
-{
-	const int stubLength = 173;
-	const int controlFlowStubLength = 18;
-	const int proxyFunctionAddressIndex = 93;
-
-	const int thisAddress = 86;
-	//const int saveRspAddress = 196;
-	//const int restoreRspAddress = 230;
-
-	const int jmpStubLength = 5;
-
-	//address of RET is the last instruction in the control flow stub
-	addressOfRET = trampoline_ + stubLength + controlFlowStubLength - 1;
-		
-	//5 bytes are required to place JMP 0x11223344
-	assert(hookLength >= jmpStubLength);
-
-	//1. save all registers
-	//2. call proxy function
-	//3. restore all registers
-	//4. jump back to orignal function
-	BYTE stub[stubLength] = {
-		0x9c,							//pushfd
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x3c, 0x24,	//movdqu XMMWORD PTR [esp],xmm7
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x34, 0x24,	//movdqu XMMWORD PTR [esp],xmm6
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x2c, 0x24,	//movdqu XMMWORD PTR [esp],xmm5
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x24, 0x24,	//movdqu XMMWORD PTR [esp],xmm4
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x1c, 0x24,	//movdqu XMMWORD PTR [esp],xmm3
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x14, 0x24,	//movdqu XMMWORD PTR [esp],xmm2
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x0c, 0x24,	//movdqu XMMWORD PTR [esp],xmm1
-		0x83, 0xEC, 0x10,				//sub    esp,0x10
-		0xf3, 0x0f, 0x7f, 0x04, 0x24,	//movdqu XMMWORD PTR [esp],xmm0
-		0x57,							//push   edi
-		0x56,							//push   esi
-		0x55,							//push   ebp
-		0x53,							//push   ebx
-		0x52,							//push   edx
-		0x51,							//push   ecx
-		0x50,							//push   eax
-
-		//"push" calculated esp on hook beginnign (make up for all the changes to esp in this trampoline so far)
-		0x83, 0xEC, 0x04,				//sub    esp,0x4
-		0x89, 0xE0,						//mov    eax,esp
-		0x05, 0xA4, 0x00, 0x00, 0x00,	//add    eax,0xA4
-		0x89, 0x04, 0x24,				//mov    DWORD PTR [esp],eax
-
-		0xB8, 0x44, 0x33, 0x22, 0x11,	//mov	 eax, this 
-		0x50,							//push	 eax
-		
-		0x89, 0xE1,						//mov    ecx,esp
-		0xE8, 0x44, 0x33, 0x22, 0x11,	//call   11223344
-
-		//comptensate for not popping recalulated esp and pushing Hook thisptr
-		0x83, 0xC4, 0x08,				//add    esp,0x8
-	
-		0x58,							//pop    eax
-		0x59,							//pop    ecx
-		0x5A,							//pop    edx			
-		0x5B,							//pop    ebx
-		0x5D,							//pop    ebp
-		0x5E,							//pop    esi
-		0x5F,							//pop    edi
-		0xf3, 0x0f, 0x6f, 0x04, 0x24,	//movdqu xmm0,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0xf3, 0x0f, 0x6f, 0x0c, 0x24,	//movdqu xmm1,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0xf3, 0x0f, 0x6f, 0x14, 0x24,	//movdqu xmm2,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0xf3, 0x0f, 0x6f, 0x1c, 0x24,	//movdqu xmm3,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0xf3, 0x0f, 0x6f, 0x24, 0x24,	//movdqu xmm4,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0xf3, 0x0f, 0x6f, 0x2c, 0x24,	//movdqu xmm5,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0xf3, 0x0f, 0x6f, 0x34, 0x24,	//movdqu xmm6,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0xf3, 0x0f, 0x6f, 0x3c, 0x24,	//movdqu xmm7,XMMWORD PTR [esp]
-		0x83, 0xC4, 0x10,				//add    esp,0x10
-		0x9d							//popfd	
-	};
-
-	BYTE stubJumpBack[jmpStubLength] = { 0xE9, 0x11, 0x22, 0x33, 0x44 };	//jmp 1122335a (back to original code)
-
-	//write jump from trampoline to original code
-	*(int32_t*)&stubJumpBack[1] = (int32_t)&sourceAddress[hookLength] - (int32_t)&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()] - jmpStubLength;
-		
-
-	int8_t controllFlowStub[controlFlowStubLength] = {
-		0xA3, 0x44, 0x33, 0x22, 0x11,	//mov ds : 0x11223344,eax
-		0xB8, 0x44, 0x33, 0x22, 0x11,	//mov eax,0x11223344
-		0xFF, 0x30,						//push DWORD PTR [eax]
-		0xA1, 0x44, 0x33, 0x22, 0x11,	//mov eax,ds:0x11223344
-		0xC3							//ret
-	};
-	*(int32_t*)&controllFlowStub[1] = (int32_t)&savedRax_; //TODO rax.. this is 32bit
-	returnAddressFromTrampoline_ = (int32_t)(trampoline_ + stubLength + controlFlowStubLength);
-		
-	//insert address of the value to return code execution after hook
-	*(int32_t*)&controllFlowStub[6] = (int32_t)&returnAddressFromTrampoline_;
-
-	//insert address of member variable to save RAX
-	*(int32_t*)&controllFlowStub[13] = (int32_t)&savedRax_;
-		
-	//save original bytes
-	originalBytes_ = new int8_t[hookLength];
-	memcpy(originalBytes_, sourceAddress, hookLength);
-
-	//copy stub to trampoline
-	memcpy(trampoline_, stub, stubLength);
-		
-
-	//insert address of proxy function to call instruction
-	*(int32_t*)&trampoline_[proxyFunctionAddressIndex + 1] = (int32_t)proxy - (int32_t)&trampoline_[proxyFunctionAddressIndex] - jmpStubLength;
-	*(int32_t*)&trampoline_[thisAddress] = (int32_t)this; //insert this
-
-
-	//save address after the stub so we can call the function without running into our hook again
-	addressToCallFunctionWithoutHook_ = &trampoline_[stubLength + controlFlowStubLength];
-
-	//copy controllFlow stub
-	memcpy(&trampoline_[stubLength], controllFlowStub, controlFlowStubLength);
-
-	//copy relocated original bytes to trampoline
-	memcpy(&trampoline_[stubLength + controlFlowStubLength], relocatedBytes.data(), relocatedBytes.size());
-
-	//copy relocated original bytes to trampoline_
-	memcpy(&trampoline_[stubLength + controlFlowStubLength], relocatedBytes.data(), relocatedBytes.size());
-
-	//copy jump back to original code
-	memcpy(&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()], stubJumpBack, jmpStubLength);
-		
-	//make trampoline executable
-	DWORD pageProtection;
-	VirtualProtect(trampoline_, stubLength + hookLength + jmpStubLength, PAGE_EXECUTE_READWRITE, &pageProtection);
-
-	//make page of original code writeable
-	VirtualProtect(sourceAddress, hookLength, PAGE_READWRITE, &pageProtection);
-
-	//write jump from original code to trampoline
-	sourceAddress[0] = 0xE9; //JMP
-	*(int32_t*)&sourceAddress[1] = (int32_t)(trampoline_ - sourceAddress) - jmpStubLength;
-
-	//NOP left over bytes
-	for (int i = jmpStubLength; i < hookLength; i++)
+	void MidfunctionHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 	{
-		sourceAddress[i] = 0x90;
+		const int stubLength = 173;
+		const int controlFlowStubLength = 18;
+		const int proxyFunctionAddressIndex = 93;
+
+		const int thisAddress = 86;
+		//const int saveRspAddress = 196;
+		//const int restoreRspAddress = 230;
+
+		const int jmpStubLength = 5;
+
+		//address of RET is the last instruction in the control flow stub
+		addressOfRET = trampoline_ + stubLength + controlFlowStubLength - 1;
+
+		//5 bytes are required to place JMP 0x11223344
+		assert(hookLength >= jmpStubLength);
+
+		//1. save all registers
+		//2. call proxy function
+		//3. restore all registers
+		//4. jump back to orignal function
+		BYTE stub[stubLength] = {
+			0x9c,							//pushfd
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x3c, 0x24,	//movdqu XMMWORD PTR [esp],xmm7
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x34, 0x24,	//movdqu XMMWORD PTR [esp],xmm6
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x2c, 0x24,	//movdqu XMMWORD PTR [esp],xmm5
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x24, 0x24,	//movdqu XMMWORD PTR [esp],xmm4
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x1c, 0x24,	//movdqu XMMWORD PTR [esp],xmm3
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x14, 0x24,	//movdqu XMMWORD PTR [esp],xmm2
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x0c, 0x24,	//movdqu XMMWORD PTR [esp],xmm1
+			0x83, 0xEC, 0x10,				//sub    esp,0x10
+			0xf3, 0x0f, 0x7f, 0x04, 0x24,	//movdqu XMMWORD PTR [esp],xmm0
+			0x57,							//push   edi
+			0x56,							//push   esi
+			0x55,							//push   ebp
+			0x53,							//push   ebx
+			0x52,							//push   edx
+			0x51,							//push   ecx
+			0x50,							//push   eax
+
+			//"push" calculated esp on hook beginnign (make up for all the changes to esp in this trampoline so far)
+			0x83, 0xEC, 0x04,				//sub    esp,0x4
+			0x89, 0xE0,						//mov    eax,esp
+			0x05, 0xA4, 0x00, 0x00, 0x00,	//add    eax,0xA4
+			0x89, 0x04, 0x24,				//mov    DWORD PTR [esp],eax
+
+			0xB8, 0x44, 0x33, 0x22, 0x11,	//mov	 eax, this 
+			0x50,							//push	 eax
+
+			0x89, 0xE1,						//mov    ecx,esp
+			0xE8, 0x44, 0x33, 0x22, 0x11,	//call   11223344
+
+			//comptensate for not popping recalulated esp and pushing Hook thisptr
+			0x83, 0xC4, 0x08,				//add    esp,0x8
+
+			0x58,							//pop    eax
+			0x59,							//pop    ecx
+			0x5A,							//pop    edx			
+			0x5B,							//pop    ebx
+			0x5D,							//pop    ebp
+			0x5E,							//pop    esi
+			0x5F,							//pop    edi
+			0xf3, 0x0f, 0x6f, 0x04, 0x24,	//movdqu xmm0,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x0c, 0x24,	//movdqu xmm1,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x14, 0x24,	//movdqu xmm2,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x1c, 0x24,	//movdqu xmm3,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x24, 0x24,	//movdqu xmm4,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x2c, 0x24,	//movdqu xmm5,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x34, 0x24,	//movdqu xmm6,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0xf3, 0x0f, 0x6f, 0x3c, 0x24,	//movdqu xmm7,XMMWORD PTR [esp]
+			0x83, 0xC4, 0x10,				//add    esp,0x10
+			0x9d							//popfd	
+		};
+
+		BYTE stubJumpBack[jmpStubLength] = { 0xE9, 0x11, 0x22, 0x33, 0x44 };	//jmp 1122335a (back to original code)
+
+		//write jump from trampoline to original code
+		*(int32_t*)&stubJumpBack[1] = (int32_t)&sourceAddress[hookLength] - (int32_t)&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()] - jmpStubLength;
+
+
+		int8_t controllFlowStub[controlFlowStubLength] = {
+			0xA3, 0x44, 0x33, 0x22, 0x11,	//mov ds : 0x11223344,eax
+			0xB8, 0x44, 0x33, 0x22, 0x11,	//mov eax,0x11223344
+			0xFF, 0x30,						//push DWORD PTR [eax]
+			0xA1, 0x44, 0x33, 0x22, 0x11,	//mov eax,ds:0x11223344
+			0xC3							//ret
+		};
+		*(int32_t*)&controllFlowStub[1] = (int32_t)&savedRax_; //TODO rax.. this is 32bit
+		returnAddressFromTrampoline_ = (int32_t)(trampoline_ + stubLength + controlFlowStubLength);
+
+		//insert address of the value to return code execution after hook
+		*(int32_t*)&controllFlowStub[6] = (int32_t)&returnAddressFromTrampoline_;
+
+		//insert address of member variable to save RAX
+		*(int32_t*)&controllFlowStub[13] = (int32_t)&savedRax_;
+
+		//save original bytes
+		originalBytes_ = new int8_t[hookLength];
+		memcpy(originalBytes_, sourceAddress, hookLength);
+
+		//copy stub to trampoline
+		memcpy(trampoline_, stub, stubLength);
+
+
+		//insert address of proxy function to call instruction
+		*(int32_t*)&trampoline_[proxyFunctionAddressIndex + 1] = (int32_t)proxy - (int32_t)&trampoline_[proxyFunctionAddressIndex] - jmpStubLength;
+		*(int32_t*)&trampoline_[thisAddress] = (int32_t)this; //insert this
+
+
+		//save address after the stub so we can call the function without running into our hook again
+		addressToCallFunctionWithoutHook_ = &trampoline_[stubLength + controlFlowStubLength];
+
+		//copy controllFlow stub
+		memcpy(&trampoline_[stubLength], controllFlowStub, controlFlowStubLength);
+
+		//copy relocated original bytes to trampoline
+		memcpy(&trampoline_[stubLength + controlFlowStubLength], relocatedBytes.data(), relocatedBytes.size());
+
+		//copy relocated original bytes to trampoline_
+		memcpy(&trampoline_[stubLength + controlFlowStubLength], relocatedBytes.data(), relocatedBytes.size());
+
+		//copy jump back to original code
+		memcpy(&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()], stubJumpBack, jmpStubLength);
+
+		//make trampoline executable
+		DWORD pageProtection;
+		VirtualProtect(trampoline_, stubLength + hookLength + jmpStubLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+
+		//make page of original code writeable
+		VirtualProtect(sourceAddress, hookLength, PAGE_READWRITE, &pageProtection);
+
+		//write jump from original code to trampoline
+		sourceAddress[0] = 0xE9; //JMP
+		*(int32_t*)&sourceAddress[1] = (int32_t)(trampoline_ - sourceAddress) - jmpStubLength;
+
+		//NOP left over bytes
+		for (int i = jmpStubLength; i < hookLength; i++)
+		{
+			sourceAddress[i] = 0x90;
+		}
+
+		//restore page protection of original code
+		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
-
-	//restore page protection of original code
-	VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
-}
 #endif
-MidfunctionHook::MidfunctionHook()
-	: savedRax_(0)
-{
-
-}
+	MidfunctionHook::MidfunctionHook()
+		: savedRax_(0)
+	{
+#ifdef _WIN64
+		//stub + controlFlow
+		//TODO avoid defining the same constants multiple times
+		staticTrampolineLength_ = 434 + 33;
+#elif _WIN32
+		staticTrampolineLength_ = 173 + 18;
+#endif
+	}
 	/**
 	 * Creates a hook.
 	 *
@@ -517,7 +580,9 @@ MidfunctionHook::MidfunctionHook()
 	{
 		Decoder decoder;
 
-		int lengthWithoutCuttingInstructionsInHalf = decoder.GetLengthOfInstructions(sourceAddress, 5);
+		//TODO decide if we need 5 or 14
+		int fiveBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 5);
+		int fourteenBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 14);
 
 		//remember hook address and length for unhooking
 		this->hookLength_ = lengthWithoutCuttingInstructionsInHalf;
@@ -526,7 +591,7 @@ MidfunctionHook::MidfunctionHook()
 #ifdef _WIN64 
 		int64_t lowestRelativeAddress = 0;
 		int64_t hightestRelativeAddress = 0;
-		if(!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, lengthWithoutCuttingInstructionsInHalf, &lowestRelativeAddress, &hightestRelativeAddress))
+		if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, lengthWithoutCuttingInstructionsInHalf, &lowestRelativeAddress, &hightestRelativeAddress))
 		{
 			printf("[Error] - MidfunctionHook - Could not calculate bounds of relative instructions replaced by hook!\n");
 			return;
@@ -539,7 +604,7 @@ MidfunctionHook::MidfunctionHook()
 			// There was no RIP-relative memory access. Attempt to allocate trampoline within +-2GB range of source address
 			if (!AllocateTrampoline(sourceAddress))
 			{
-				printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %llx\n", sourceAddress);
+				printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 				return;
 			}
 		}
@@ -553,23 +618,26 @@ MidfunctionHook::MidfunctionHook()
 			}
 		}
 #elif _WIN32
-		if(!AllocateTrampoline(sourceAddress))
+		if (!AllocateTrampoline(sourceAddress))
 		{
 			printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %x\n", sourceAddress);
 			return;
 		}
 #endif
+		//The trampoline has a part with static length (save registers, call proxy, restore registers, control flow) followed by a part with dynamic length (relocated bytes).
+		//We need to know where the dynamic parts start to relocate rip-relative memory accesses
+		int8_t* startOfRelocation = trampoline_ + staticTrampolineLength_ + 1;
 
-		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_, restrictedRelocation_);
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, startOfRelocation, restrictedRelocation_);
 		if (relocatedBytes.empty())
 		{
 			printf("[Error] - MidfunctionHook - Relocation of bytes replaced by hook failed\n");
 			return;
 		}
-		
-		// Fills the newly allocated trampoline with instructions and redirects the code flow to it 
+
+		//Fills the newly allocated trampoline with instructions and redirects the code flow to it 
 		GenerateTrampolineAndApplyHook(sourceAddress, lengthWithoutCuttingInstructionsInHalf, relocatedBytes, proxy);
-	}
+		}
 
 	/**
 	 * Get a version of the hooked function that can be called without recursively running in the hook again
@@ -615,4 +683,4 @@ MidfunctionHook::MidfunctionHook()
 		//The next execution of the same RET instruciton will then take the return address pushed on the stack by the caller of the hooked funciton, therefore skipping the call.
 		returnAddressFromTrampoline_ = (int64_t)addressOfRET;
 	}
-}
+	}
