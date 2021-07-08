@@ -16,6 +16,6 @@ namespace hookftw
 	{
 	public:
 		static void PrintInstruction(int64_t runtime_address, void* instruction);
-		void Analyse(int8_t* address, size_t byteCount);
+		void PrintInstructions(int8_t* address, size_t byteCount);
 	};
 }
