@@ -64,10 +64,10 @@ namespace hookftw
 				//This should not be reached
 				return false;
 			}
-			}
+		}
 		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %d attempts)\n", trampoline_, allocationAttempts);
 		return true;
-		}
+	}
 
 	/**
 	 * Attempts to allocate a trampoline_ within +-2gb range with respect to rip-relative memory accesses.
@@ -578,43 +578,90 @@ namespace hookftw
 	 */
 	void MidfunctionHook::Hook(int8_t* sourceAddress, void __fastcall proxy(context* ctx))
 	{
+		this->sourceAddress_ = sourceAddress;
+
 		Decoder decoder;
 
-		//TODO decide if we need 5 or 14
+		// if we can allocate our trampoline in +-2gb range we only need a 5 bytes JMP
+		// if we can't, we need a 14 bytes JMP
 		int fiveBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 5);
 		int fourteenBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 14);
 
-		//remember hook address and length for unhooking
-		this->hookLength_ = lengthWithoutCuttingInstructionsInHalf;
-		this->sourceAddress_ = sourceAddress;
 
 #ifdef _WIN64 
 		int64_t lowestRelativeAddress = 0;
 		int64_t hightestRelativeAddress = 0;
-		if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, lengthWithoutCuttingInstructionsInHalf, &lowestRelativeAddress, &hightestRelativeAddress))
+
+		// attempt using 5 bytes 
+		if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fiveBytesWithoutCuttingInstructions, &lowestRelativeAddress, &hightestRelativeAddress))
 		{
 			printf("[Error] - MidfunctionHook - Could not calculate bounds of relative instructions replaced by hook!\n");
 			return;
 		}
 
-		printf("[Info] - MidfunctionHook - bounds of relative addresses accessed [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
+		printf("[Info] - MidfunctionHook - Bounds of relative addresses accessed [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
 
+		// check if there was rip-relative memory access
 		if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
 		{
-			// There was no RIP-relative memory access. Attempt to allocate trampoline within +-2GB range of source address
-			if (!AllocateTrampoline(sourceAddress))
+			// there was no rip-relative memory acccess
+			// attempt to allocate trampoline within +-2GB range of source address
+			if (!AllocateTrampoline())
 			{
 				printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 				return;
 			}
+
+			// trampoline could not be allocated withing +-2gb range
+			if (restrictedRelocation_)
+			{
+				// there were no rip-relative memory accesses within fiveBytesWithoutCuttingInstructions of the hook address.
+				// since we failed to allocate withing +-2GB range we now need to check fourteenBytesWithoutCuttingInstructions for rip-relative instructions
+				if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fourteenBytesWithoutCuttingInstructions, &lowestRelativeAddress, &hightestRelativeAddress))
+				{
+					printf("[Error] - MidfunctionHook - Could not calculate bounds of relative instructions replaced by hook!\n");
+					return;
+				}
+
+				// check if there is rip-relative memory access. Since we need to use a fourteenBytesWithoutCuttingInstructions byte jump we don't support relocating rip-relative instructions
+				// if we have rip-relativ memory access here, hooking failed
+				if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
+				{
+					printf("[Error] - MidfunctionHook - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
+					return;
+				}
+				else
+				{
+					// use the fourteen bytes JMP 
+					this->hookLength_ = fourteenBytesWithoutCuttingInstructions;
+				}
+			}
+			else
+			{
+				// use the five bytes JMP
+				this->hookLength_ = fiveBytesWithoutCuttingInstructions;
+			}
 		}
 		else
 		{
-			// There was rip-relative memory access (x64 only)
-			if (!AllocateTrampolineWithinBounds(sourceAddress, lowestRelativeAddress, hightestRelativeAddress))
+			// there was rip-relative memory access (x64 only)
+			if (!AllocateTrampolineWithinBounds(lowestRelativeAddress, hightestRelativeAddress))
 			{
 				printf("[Error] - MidfunctionHook - Failed to allocate trampoline within bounds [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
 				return;
+			}
+
+			// we know there is rip-relative memory access within fiveBytesWithoutCuttingInstructions bytes of the hooking address which is supported
+			// if we failed to allocate the trampoline withing +-2GB range it is not supported
+			if (restrictedRelocation_)
+			{
+				printf("[Error] - MidfunctionHook - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
+				return;
+			}
+			else
+			{
+				// use the five bytes JMP
+				this->hookLength_ = fiveBytesWithoutCuttingInstructions;
 			}
 		}
 #elif _WIN32
@@ -623,12 +670,18 @@ namespace hookftw
 			printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %x\n", sourceAddress);
 			return;
 		}
+
+		//only the 5 byte JMP rel32 exists in 32bit
+		this->hookLength_ = fiveBytesWithoutCuttingInstructions;
 #endif
-		//The trampoline has a part with static length (save registers, call proxy, restore registers, control flow) followed by a part with dynamic length (relocated bytes).
-		//We need to know where the dynamic parts start to relocate rip-relative memory accesses
+
+		
+		
+		// the trampoline has a part with static length (save registers, call proxy, restore registers, control flow) followed by a part with dynamic length (relocated bytes).
+		// we need to know where the dynamic parts start to relocate rip-relative memory accesses
 		int8_t* startOfRelocation = trampoline_ + staticTrampolineLength_ + 1;
 
-		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, startOfRelocation, restrictedRelocation_);
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, this->hookLength_, startOfRelocation, restrictedRelocation_);
 		if (relocatedBytes.empty())
 		{
 			printf("[Error] - MidfunctionHook - Relocation of bytes replaced by hook failed\n");
@@ -636,8 +689,9 @@ namespace hookftw
 		}
 
 		//Fills the newly allocated trampoline with instructions and redirects the code flow to it 
-		GenerateTrampolineAndApplyHook(sourceAddress, lengthWithoutCuttingInstructionsInHalf, relocatedBytes, proxy);
-		}
+		GenerateTrampolineAndApplyHook(sourceAddress, this->hookLength_, relocatedBytes, proxy);
+	}
+
 
 	/**
 	 * Get a version of the hooked function that can be called without recursively running in the hook again
@@ -683,4 +737,4 @@ namespace hookftw
 		//The next execution of the same RET instruciton will then take the return address pushed on the stack by the caller of the hooked funciton, therefore skipping the call.
 		returnAddressFromTrampoline_ = (int64_t)addressOfRET;
 	}
-	}
+}
