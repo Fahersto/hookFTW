@@ -90,7 +90,7 @@ namespace hookftw
 			if (instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5)
 			{
 #ifdef _WIN64
-				//disp32 see ModR/M table (intel manual)
+				// disp32 see ModR/M table (intel manual)
 				ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 
 				// we can use rax here as it has not to be preserved in function calls
@@ -102,20 +102,20 @@ namespace hookftw
 				*(uint64_t*)&rellocatedCallInstructions[2] = originalJumpTarget;
 				rellocatedbytes.insert(rellocatedbytes.end(), rellocatedCallInstructions, rellocatedCallInstructions + rellocatedCallInstructionsLength);
 #elif _WIN32
-				//Just copy original call instruction. There is no rip-relative addressing in 32 bit. The displacement is relative to 0.
+				// just copy original call instruction. There is no rip-relative addressing in 32 bit. The displacement is relative to 0.
 				rellocatedbytes.insert(rellocatedbytes.end(), instructionAddress, instructionAddress + instruction.length);
 #endif 
 			}
 			else
 			{
-				//Just copy original call instruction
+				// just copy original call instruction
 				rellocatedbytes.insert(rellocatedbytes.end(), instructionAddress, instructionAddress + instruction.length);
 			}
 		}
 		else
 		{
-			//e8 calls.. CALL rel16, CALL rel32,
-			//9a calls.. CALL ptr16:16, CALL ptr16:32 are not handled (no support for 16 bit architecture)
+			// e8 calls.. CALL rel16, CALL rel32,
+			// 9a calls.. CALL ptr16:16, CALL ptr16:32 are not handled (no support for 16 bit architecture)
 			ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 
 #ifdef _WIN64
@@ -139,8 +139,8 @@ namespace hookftw
 #endif
 		}
 		
-		//the program can return to the return address pushed on the stack (at time of the call) at any time.
-		//if the hook is removed (and therefore the trampoline freed) the return address might not contain valid code --> crash
+		// the program can return to the return address pushed on the stack (at time of the call) at any time.
+		// if the hook is removed (and therefore the trampoline freed) the return address might not contain valid code --> crash
 		printf("[Warning] - Decoder - Relocated a call instruction. Unhooking is not safe!\n");
 	}
 
@@ -151,13 +151,12 @@ namespace hookftw
 	 *	@param instructionAddress original address of the branch instruction
 	 *	@param rellocatedbytes relocated bytes
 	 */
-	void RelocateBranchInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& rellocatedbytes)
+	void RelocateBranchInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& rellocatedbytes)
 	{
 		ZyanU64 originalJumpTarget;
 		ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
 
-		rellocatedbytes.insert(rellocatedbytes.end(), instructionAddress, instructionAddress + instruction.length);
-		
+		rellocatedbytes.insert(rellocatedbytes.end(), instructionAddress, instructionAddress + instruction.length);	
 
 		const int elementSizeInBytes = instruction.operands[0].element_size / 8;
 		//suppport jcc rel8, jcc rel16, jcc rel32. JCC always has the offset in its first operand. Fill remmaining bytes with '0'
@@ -166,13 +165,14 @@ namespace hookftw
 			rellocatedbytes[rellocatedbytes.size() - i] = 0x0;
 		}
 		rellocatedbytes[rellocatedbytes.size() - elementSizeInBytes] = 0x2;
-		//rellocatedbytes.push_back(0x2);
 
-		//jmp after jcc instruction because jcc is not taken
+#ifdef _WIN64
+		// jmp after jcc instruction because jcc is not taken
 		rellocatedbytes.push_back(0xEB);			//jmp    0x10
 		rellocatedbytes.push_back(0xE);				//
 
-		//jmp for when jcc is taken
+		// jmp for when jcc is taken
+		// we use an absolute JMP for x64 as this allows to relocate jcc instructions to a trampoline that is more than +-2GB away
 		rellocatedbytes.push_back(0xFF);			//opcodes = JMP [rip+0]
 		rellocatedbytes.push_back(0x25);			//
 		rellocatedbytes.push_back(0x0);				//
@@ -181,6 +181,20 @@ namespace hookftw
 		rellocatedbytes.push_back(0x0);				//
 
 		rellocatedbytes.insert(rellocatedbytes.end(), (int8_t*)&originalJumpTarget, (int8_t*)&originalJumpTarget + 8); //destination to jump to: 8 Bytes
+
+#elif _WIN32
+		// jmp after jcc instruction because jcc is not taken
+		rellocatedbytes.push_back(0xEB);			//jmp    0x07
+		rellocatedbytes.push_back(0x5);				//
+
+		// use relative jmp
+		//write JMP from original code to trampoline_
+		//we substract 5 because 
+		int32_t newRelativeAddress = (int32_t)((int64_t)originalJumpTarget - (int64_t)relocatedInstructionAddress - 5 - 2 - instruction.length);
+
+		rellocatedbytes.push_back(0xe9);																				//opcodes = JMP rel32
+		rellocatedbytes.insert(rellocatedbytes.end(), (int8_t*)&newRelativeAddress, (int8_t*)&newRelativeAddress + 4);	//4 byte relative jump address
+#endif
 		printf("[Info] - Decoder - Relocated a branch instruction\n");
 	}
 
@@ -199,7 +213,7 @@ namespace hookftw
 	{
 		int8_t* tmpBuffer = (int8_t*)malloc(instruction.length);
 
-		//copy original instruction
+		// copy original instruction
 		memcpy(tmpBuffer, instructionAddress, instruction.length);
 
 		//calculate the absolute address of the rip-relative address
@@ -207,7 +221,7 @@ namespace hookftw
 
 		const int32_t relocatedRelativeAddress = absoluteAddress - relocatedInstructionAddress - instruction.length;
 
-		//write relocated relative address to the relocated instrucions displacement
+		// write relocated relative address to the relocated instrucions displacement
 		*(int32_t*)&tmpBuffer[instruction.raw.disp.offset] = relocatedRelativeAddress;
 
 		//add bytes of relocated instructions to relocated instuctions
@@ -269,7 +283,7 @@ namespace hookftw
 
 		int amountOfBytesRellocated = 0;
 
-		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
+		// we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
 		while (amountOfBytesRellocated < length)
 		{
 			ZydisDecodedInstruction instruction;
@@ -281,7 +295,7 @@ namespace hookftw
 				printf("[Error] - Decoder - Could not decode instruction\n");
 				return std::vector<int8_t>();
 			}
-			//the order here matters. We start with more specific relocations. There are for example call instructions that use rip-relative memory accesses
+			// the order here matters. We start with more specific relocations. There are for example call instructions that use rip-relative memory accesses
 			if (IsCallInstruction(instruction))
 			{
 				//handle relocation of call instructions
@@ -289,13 +303,13 @@ namespace hookftw
 			}
 			else if (IsBranchInstruction(instruction))
 			{
-				//handle relocation of branch instructions (jcc, loopcc)
-				RelocateBranchInstruction(instruction, currentAddress, relocatedbytes);
+				// handle relocation of branch instructions (jcc, loopcc)
+				RelocateBranchInstruction(instruction, currentAddress, targetAddress + relocatedbytes.size(), relocatedbytes);
 			}
 			else if (IsRipRelativeMemoryInstruction(instruction))
 			{
-				//restricted relocation is enabled when the trampoline could not be allocated withing +-2GB range
-				//rip-relative memory instructions may not be able to reach their target address (TODO check this on an instruction based level... there are some cases when this works)
+				// restricted relocation is enabled when the trampoline could not be allocated withing +-2GB range
+				// rip-relative memory instructions may not be able to reach their target address (TODO check this on an instruction based level... there are some cases when this works)
 				if (restrictedRelocation)
 				{
 					printf("[Error] - Decoder - Can't relocate a rip-relative memory access with restricted relocation enabled (trampoline is not in rel32 range). This is currently not supported.\n");
@@ -306,10 +320,10 @@ namespace hookftw
 			}
 			else if (instruction.mnemonic == ZYDIS_MNEMONIC_XBEGIN)
 			{
-				//XBEGIN causes undefined opcode exception on most computers as intel removed it form the underlying microcode architecture due to security concerns (Zombieload 2 Attack)
-				//and even physically removed support for it on never processors
-				//additionally windows (and linux) allow for disabling tsx support
-				//we expect to never encounter this instruction
+				// XBEGIN causes undefined opcode exception on most computers as intel removed it form the underlying microcode architecture due to security concerns (Zombieload 2 Attack)
+				// and even physically removed support for it on never processors
+				// additionally windows (and linux) allow for disabling tsx support
+				// we expect to never encounter this instruction
 				printf("[Error] - Decoder - Encountered XBEGIN instruction which is a relative but unhandled instruction!\n");
 				return std::vector<int8_t>();
 			}
@@ -366,7 +380,7 @@ namespace hookftw
 		std::vector<int8_t*> foundInstructions;
 		int offset = 0;
 		ZyanStatus decodeResult = ZYAN_STATUS_FAILED;
-		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might relocate more.
+		// we will atleast relocate "length" bytes. To avoid splitting an instruction we might relocate more.
 		do
 		{
 			ZydisDecodedInstruction instruction;
@@ -428,7 +442,7 @@ namespace hookftw
 		uint64_t tmpLowestAddress = 0xffffffffffffffff;
 		uint64_t tmpHighestAddress = 0;
 
-		//we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
+		// we will atleast rellocate "length" bytes. To avoid splitting an instruction we might rellocate more.
 		while (byteCount < length)
 		{
 			ZydisDecodedInstruction instruction;
@@ -441,14 +455,14 @@ namespace hookftw
 				return false;
 			}
 
-			//skip non rip-relative instructions
+			// skip non rip-relative instructions
 			if (!IsRipRelativeMemoryInstruction(instruction))
 			{
 				byteCount += instruction.length;
 				continue;
 			}
 
-			//calculate the absolute address of the rip-relative address. Note: ZydisCalcAbsoluteAddress does not calculate addresses for rip-relative instructions
+			// calculate the absolute address of the rip-relative address. Note: ZydisCalcAbsoluteAddress does not calculate addresses for rip-relative instructions
 			const int64_t absoluteTargetAddress = (int64_t)currentAddress + instruction.length + instruction.raw.disp.value;
 
 			if (absoluteTargetAddress < tmpLowestAddress)
