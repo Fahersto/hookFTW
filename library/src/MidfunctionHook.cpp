@@ -24,7 +24,7 @@ namespace hookftw
 		int64_t allocationAttempts = 0;
 
 		// calculate the lowest and highest address than can be reached by a jmp rel32 when placing it at the hookAddress
-		int8_t* lowestAddressReachableByFiveBytesJump = sourceAddress_ - signedIntMaxValue + 5;
+		int64_t lowestAddressReachableByFiveBytesJump = (int64_t)sourceAddress_ - signedIntMaxValue + 5;
 		if (lowestAddressReachableByFiveBytesJump < 0)
 		{
 			lowestAddressReachableByFiveBytesJump = 0;
@@ -35,14 +35,15 @@ namespace hookftw
 		{
 			// start with the highest possible address and go down by one pageSize for every attempt. VirtualAlloc rounds down to nearest multiple of allocation granularity.
 			// we start by substracting 1 page (++allocationAttempts) to account for VirtualAlloc rounding down the target address to the next page boundary
-			int8_t* targetAddress = sourceAddress_ + signedIntMaxValue + 5 - (++allocationAttempts * systemInfo.dwPageSize);
+			int64_t targetAddress = (int64_t)sourceAddress_ + signedIntMaxValue + 5 - (++allocationAttempts * systemInfo.dwPageSize);
 
 			// check if the target address can still be reached with rel32. If the target address is too low, we failed to allocate it withing JMP rel32 range.
-			if (targetAddress >= lowestAddressReachableByFiveBytesJump)
+			if ((int64_t)targetAddress >= lowestAddressReachableByFiveBytesJump)
 			{
+				auto tmp = (int8_t*)targetAddress;
 				// attempt to allocate the trampoline. If we fail, we try again on the next loop iteration.
 				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
-				trampoline_ = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				trampoline_ = (int8_t*)VirtualAlloc((int8_t*)targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 			}
 			else
 			{
@@ -65,7 +66,7 @@ namespace hookftw
 				return false;
 			}
 		}
-		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %d attempts)\n", trampoline_, allocationAttempts);
+		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %lld attempts)\n", trampoline_, allocationAttempts);
 		return true;
 	}
 
@@ -87,23 +88,21 @@ namespace hookftw
 		const int trampolineLengthUpperBound = 1000;
 
 		// calculate the lowest and highest address than can be reached by a jmp rel32 when placing it at the hookAddress
-		int8_t* lowestAddressReachableByFiveBytesJump = sourceAddress_ - signedIntMaxValue + 5;
+		int64_t lowestAddressReachableByFiveBytesJump = (int64_t)sourceAddress_ - signedIntMaxValue + 5;
 		if (lowestAddressReachableByFiveBytesJump < 0)
 		{
 			lowestAddressReachableByFiveBytesJump = 0;
 		}
 
-		int8_t* highestAddressReachableByFiveBytesJump = sourceAddress_ + signedIntMaxValue + 5;
+		int64_t highestAddressReachableByFiveBytesJump = (int64_t)sourceAddress_ + signedIntMaxValue + 5;
 
-		//TODO respect 
-		int8_t* lowestAddressThatCanReachHighestRipRelativeAccess = (int8_t*)highestRipRelativeMemoryAddress - signedIntMaxValue + 5;
+		int64_t lowestAddressThatCanReachHighestRipRelativeAccess = highestRipRelativeMemoryAddress - signedIntMaxValue + 5;
 
 		// calculate the highest address that can still reach the lowest rip-relative access
-		int8_t* highestAddressThatCanreachLowestRipRelativeAccess = (int8_t*)lowestRipRelativeMemoryAccess + signedIntMaxValue - 5;
-
+		int64_t highestAddressThatCanReachLowestRipRelativeAccess = lowestRipRelativeMemoryAccess + signedIntMaxValue - 5;
 
 		// we want to start allocation attempts with the highest address that can reach the lowest rip-relative memory access and is reachable with jmp rel32 from the hook address
-		int8_t* initialTargetAddress = highestAddressThatCanreachLowestRipRelativeAccess;
+		int64_t initialTargetAddress = highestAddressThatCanReachLowestRipRelativeAccess;
 		if (initialTargetAddress > highestAddressReachableByFiveBytesJump)
 		{
 			initialTargetAddress = highestAddressReachableByFiveBytesJump;
@@ -116,14 +115,14 @@ namespace hookftw
 			// start with highest address that can both: 
 			// - reach lowest RIP-relative
 			// - can be reached by jmp rel32
-			int8_t* targetAddress = initialTargetAddress - trampolineLengthUpperBound - (++allocationAttempts * systemInfo.dwPageSize);
+			int8_t* targetAddress = (int8_t*)initialTargetAddress - trampolineLengthUpperBound - (++allocationAttempts * systemInfo.dwPageSize);
 
 			// Check if we are still high enough
 			// we know we failed to allocate with rel32 when one of these statements is true:
 			// - address is to low to be reached by rel32
 			// - address is to low to reach highestRipRelativeMemoryAccess
-			if (!(targetAddress < lowestAddressReachableByFiveBytesJump) &&
-				!(targetAddress < lowestAddressThatCanReachHighestRipRelativeAccess))
+			if (!((int64_t)targetAddress < lowestAddressReachableByFiveBytesJump) &&
+				!((int64_t)targetAddress < lowestAddressThatCanReachHighestRipRelativeAccess))
 			{
 				// try to allocate trampoline_ within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
 				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
@@ -517,11 +516,9 @@ namespace hookftw
 		//copy stub to trampoline
 		memcpy(trampoline_, stub, stubLength);
 
-
 		//insert address of proxy function to call instruction
 		*(int32_t*)&trampoline_[proxyFunctionAddressIndex + 1] = (int32_t)proxy - (int32_t)&trampoline_[proxyFunctionAddressIndex] - jmpStubLength;
 		*(int32_t*)&trampoline_[thisAddress] = (int32_t)this; //insert this
-
 
 		//save address after the stub so we can call the function without running into our hook again
 		addressToCallFunctionWithoutHook_ = &trampoline_[stubLength + controlFlowStubLength];
@@ -665,9 +662,9 @@ namespace hookftw
 			}
 		}
 #elif _WIN32
-		if (!AllocateTrampoline(sourceAddress))
+		if (!AllocateTrampoline())
 		{
-			printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %x\n", sourceAddress);
+			printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 			return;
 		}
 
