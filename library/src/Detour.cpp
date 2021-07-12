@@ -94,8 +94,8 @@ namespace hookftw
 		VirtualProtect(sourceAddress_, hookLength_, oldProtection, &oldProtection);
 
 		//clean up allocated memory
-		delete[] originalBytes_;
-		delete[] trampoline_;
+		//delete[] originalBytes_;
+		//delete[] trampoline_;
 	}
 
 #else
@@ -187,8 +187,8 @@ namespace hookftw
 		VirtualProtect(sourceAddress_, hookLength_, dwback, &dwback);
 
 		// clean up allocated memory
-		delete[] originalBytes_;
-		delete[] trampoline_;
+		//delete[] originalBytes_;
+		//delete[] trampoline_;
 	}
 #endif
 
