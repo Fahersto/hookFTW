@@ -1,6 +1,6 @@
 #include <Windows.h>
 
-#include <Hook.h>
+
 #include <VFTHook.h>
 #include <Logger.h>
 #include <DbgSymbols.h>
@@ -58,15 +58,6 @@ DWORD __stdcall Run(LPVOID hModule)
 	*/
 	
 	
-	hookftw::Hook prologHook(
-		dbgSymbols.GetAddressBySymbolName("assignTest"),
-		[](hookftw::context* ctx) {
-		printf("Inside FuncStartHook\n");
-		//ctx->ChangeControllFlow(123213);
-		ctx->SkipOriginalFunction();
-		ctx->rax = ctx->CallOriginal<int>(2);
-	}
-	);
 
 	/*
 	
@@ -97,7 +88,6 @@ DWORD __stdcall Run(LPVOID hModule)
 	{
 		if (GetAsyncKeyState(VK_F1) & 0x1)
 		{
-			prologHook.Unhook();
 			break;
 		}
 		if (GetAsyncKeyState(VK_F2) & 0x1)
@@ -146,15 +136,6 @@ DWORD __stdcall Run(LPVOID hModule)
 	hookftw::Decoder decoder;
 	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
 
-	hookftw::Hook assignTestHook(
-		dbgSymbols.GetAddressBySymbolName("assignTest"),
-		[](hookftw::context* ctx) {
-			ctx->PrintRegister();
-			ctx->SkipOriginalFunction();
-			ctx->eax = ctx->CallOriginal<int>(1337);
-		}
-	);
-
 	/*
 	hookftw::VFTHook cowVmtHook((void**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"));
 	cowVmtHook.Hook(0, &hookedCow);
@@ -169,7 +150,7 @@ DWORD __stdcall Run(LPVOID hModule)
 		{
 			//cowVmtHook.Unhook();
 			//catVmtHook.Unhook();
-			assignTestHook.Unhook();
+			//assignTestHook.Unhook();
 			//calculationHook.Unhook();
 			break;
 		}
