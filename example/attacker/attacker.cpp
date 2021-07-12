@@ -1,10 +1,16 @@
 #include <Windows.h>
 
+<<<<<<< HEAD
 
+=======
+#include <MidfunctionHook.h>
+#include <Detour.h>
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 #include <VFTHook.h>
 #include <Logger.h>
 #include <DbgSymbols.h>
 #include <Decoder.h>
+#include <VEHHook.h>
 
 
 int answerToLife(int x)
@@ -12,6 +18,27 @@ int answerToLife(int x)
 	printf("42\n");
 	return x;
 }
+
+int hookedCalculate(int x) 
+{ 
+	printf("calculate called, returning %d\n", x); 
+	return x; 
+}
+
+
+void hkSound()
+{
+	printf("hkSound\n");
+}
+
+int _cdecl hkGetNumber()
+{
+	//printf("hkGetNumber\n");
+	return rand();
+}
+
+
+
 
 #if _WIN64
 DWORD __stdcall Run(LPVOID hModule)
@@ -23,26 +50,30 @@ DWORD __stdcall Run(LPVOID hModule)
 	int8_t* baseAddressOfProcess = (int8_t*)GetModuleHandle(NULL);
 	int8_t* calcFunctionStart = baseAddressOfProcess + 0x13C0;
 	int8_t* calcFunctionRelocateCall = baseAddressOfProcess + 0x13FC;
-	int8_t* calcFunctionRelocateJnl = baseAddressOfProcess + 0x13E2;
+
 	int8_t* relocateRipRelative = baseAddressOfProcess + 0x14a0;
 	int8_t* relocateRipRelaitveCall = baseAddressOfProcess + 0x159b; //call that directly references the rip register (ff 15 rel32) instead of being relative to the position of the next instruction (e8 rel32)
 	int8_t* ripRelCmp = baseAddressOfProcess + 0x14a0;
 
 	int8_t* answerToLifeStart = (int8_t*)GetModuleHandleA("example.dll") + 0x1ed0;
 
-	
 	hookftw::Decoder decoder;
-	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
+
+	/*
+	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::RIP_RELATIV, 0x2000);
 
 	printf("[Info] relative instructions\n");
 	for (auto& instruction : relativeInstructions)
 	{
 		printf("\t%p\n", instruction);
 	}
-	
-	
+	*/
+
 	hookftw::DbgSymbols dbgSymbols;
 	//dbgSymbols.EnumerateSymbols();
+
+	//hookftw::Detour assignDetour;
+	//assignDetour.Hook(dbgSymbols.GetAddressBySymbolName("assignTest"), (int8_t*)hkAssign);
 
 	/*
 	hookftw::Hook funcStartHook(
@@ -58,6 +89,28 @@ DWORD __stdcall Run(LPVOID hModule)
 	*/
 	
 	
+<<<<<<< HEAD
+=======
+	//int8_t* target = baseAddressOfProcess + 0x1c0b; //victim.exe+1C0B - 48 8D 0D 26B00000     - lea rcx,[victim.exe+CC38] 
+	int8_t* target = baseAddressOfProcess + 0x1c76; //a couple of regular moves
+
+	hookftw::MidfunctionHook prologHook;
+	prologHook.Hook(
+		//baseAddressOfProcess + 0x3206,
+		target,
+		[](hookftw::context* ctx) {
+			ctx->PrintRegister();
+		}
+	);
+	
+
+	//hookftw::VEHHook vehHook;
+	//vehHook.Hook(baseAddressOfProcess + 0x1210, (int8_t*)hkGetNumber);
+	//vehHook.Hook(dbgSymbols.GetAddressBySymbolName("calculate"), (int8_t*)hkCalculate);
+	//hookftw::VEHHook vehHook2(*(int8_t**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"), (int8_t*)hkSound);
+
+	
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 
 	/*
 	
@@ -84,10 +137,18 @@ DWORD __stdcall Run(LPVOID hModule)
 	);
 	*/
 
+
+
 	while (true)
 	{
 		if (GetAsyncKeyState(VK_F1) & 0x1)
 		{
+<<<<<<< HEAD
+=======
+			//assignDetour.Unhook();
+			//vehHook.Unhook();
+			//vehHook2.Unhook();
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 			break;
 		}
 		if (GetAsyncKeyState(VK_F2) & 0x1)
@@ -128,14 +189,52 @@ DWORD __stdcall Run(LPVOID hModule)
 	int8_t* baseAddressOfProcess = (int8_t*)GetModuleHandle(NULL);
 	int8_t* calcFunctionStart = baseAddressOfProcess + 0x29A0;
 
+	int8_t* directHookedCalc = (int8_t*)GetModuleHandle("example.dll"); + 0x1E20;
+
 
 	//Load debug symbols
 	hookftw::DbgSymbols dbgSymbols;
 	//dbgSymbols.EnumerateSymbols();
 
 	hookftw::Decoder decoder;
-	auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
+	//auto relativeInstructions = decoder.FindRelativeInstructionsOfType(baseAddressOfProcess, hookftw::RelativeInstruction::CALL, 0x2000);
 
+	/*
+	int8_t* target = (int8_t*)hookedCalculate - 0x1429 + 0x1d80;
+	hookftw::Detour assignDetour;
+	assignDetour.Hook(dbgSymbols.GetAddressBySymbolName("calculate"), (int8_t*)target);
+	*/
+
+	hookftw::MidfunctionHook midfunctionHook;
+	
+	midfunctionHook.Hook(
+		dbgSymbols.GetAddressBySymbolName("calculate"),
+		//baseAddressOfProcess + 0x1b4e, //call
+		//baseAddressOfProcess + 0x1b3f, //je
+		[](hookftw::context* ctx) {
+			//ctx->PrintRegister();
+			//*(int32_t*)(ctx->esp + 0x4) = 0x2;
+			ctx->SkipOriginalFunction();
+			ctx->eax = ctx->CallOriginal<int>(2);
+		}
+	);
+
+<<<<<<< HEAD
+=======
+	/*
+	hookftw::Hook assignTestHook(
+		dbgSymbols.GetAddressBySymbolName("assignTest"),
+		[](hookftw::context* ctx) {
+			ctx->PrintRegister();
+			ctx->SkipOriginalFunction();
+			ctx->eax = ctx->CallOriginal<int>(2);
+		}
+	);
+	*/
+	
+	//hookftw::VEHHook vehHook(dbgSymbols.GetAddressBySymbolName("assignTest"), (int8_t*)hkAssign);
+
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 	/*
 	hookftw::VFTHook cowVmtHook((void**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"));
 	cowVmtHook.Hook(0, &hookedCow);
@@ -150,8 +249,13 @@ DWORD __stdcall Run(LPVOID hModule)
 		{
 			//cowVmtHook.Unhook();
 			//catVmtHook.Unhook();
+<<<<<<< HEAD
 			//assignTestHook.Unhook();
+=======
+			//assignDetour.Unhook();
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 			//calculationHook.Unhook();
+			//vehHook.Unhook();
 			break;
 		}
 		if (GetAsyncKeyState(VK_F4) & 0x8000)

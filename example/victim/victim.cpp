@@ -68,16 +68,11 @@ int calculation(int x)
 	return x * x + z - t + k * 3 - y;
 }
 
-int assignTest(int rofl)
+int calculate(int x)
 {
-	int returnVal = rofl * 2 + 3;
-	rofl += 3;
-	returnVal += rofl - 2 * rofl;
-	rofl += returnVal;
-	int tmp = returnVal % rofl;
-	returnVal *= tmp + 2;
-	printf("inside: assignTest\n");
-	return returnVal;
+	int returnVal = x * 2 + 3;
+	returnVal ^= x;
+	return returnVal * 5;
 }
 
 
@@ -101,8 +96,8 @@ int main()
 		printf("%d calculation = %d\n", value, calculation(value));
 
 		int test = 1337;
-		test = assignTest(1337);
-		printf("assignTest = %d\n", test);
+		test = calculate(1337);
+		printf("calculate = %d\n", test);
 
 		printf("Animals\n");
 		for (auto& animal : animals)
