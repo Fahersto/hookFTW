@@ -10,150 +10,8 @@
 
 namespace hookftw
 {
-	/**
-	 * Attempts to allocate a trampoline_ within +-2gb range of the hook so we only need 5 bytes to hook (jmp rel32) instead of 14 (jmp[rip+0] int64_t, only in x64)
-	 */
-	bool MidfunctionHook::AllocateTrampoline()
-	{
-		// we attempt to use a rel32 JMP as this makes relocation easier (RIP-relative memory accesses)
-		const int32_t signedIntMaxValue = 0x7fffffff;
-
-		// allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
-		int64_t allocationAttempts = 0;
-
-		// calculate the lowest and highest address than can be reached by a jmp rel32 when placing it at the hookAddress
-		int64_t lowestAddressReachableByFiveBytesJump = (int64_t)sourceAddress_ - signedIntMaxValue + 5;
-		if (lowestAddressReachableByFiveBytesJump < 0)
-		{
-			lowestAddressReachableByFiveBytesJump = 0;
-		}
-
-		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range\n");
-		while (!trampoline_)
-		{
-			// start with the highest possible address and go down by one pageSize for every attempt. VirtualAlloc rounds down to nearest multiple of allocation granularity.
-			// we start by substracting 1 page (++allocationAttempts) to account for VirtualAlloc rounding down the target address to the next page boundary
-			int64_t targetAddress = (int64_t)sourceAddress_ + signedIntMaxValue + 5 - (++allocationAttempts * systemInfo.dwPageSize);
-
-			// check if the target address can still be reached with rel32. If the target address is too low, we failed to allocate it withing JMP rel32 range.
-			if ((int64_t)targetAddress >= lowestAddressReachableByFiveBytesJump)
-			{
-				auto tmp = (int8_t*)targetAddress;
-				// attempt to allocate the trampoline. If we fail, we try again on the next loop iteration.
-				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
-				trampoline_ = (int8_t*)VirtualAlloc((int8_t*)targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-			}
-			else
-			{
-#ifdef _WIN64
-				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline_ = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
-				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
-				restrictedRelocation_ = true;
-
-				printf("[Warning] - MidfunctionHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
-				return true;
-
-#elif _WIN32
-				// we currently have no way to deal with situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
-				return false;
-#endif
-				// this should not be reached
-				return false;
-			}
-		}
-		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %lld attempts)\n", trampoline_, allocationAttempts);
-		return true;
-	}
-
-	/**
-	 * Attempts to allocate a trampoline_ within +-2gb range with respect to rip-relative memory accesses.
-	 */
-	bool MidfunctionHook::AllocateTrampolineWithinBounds(int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress)
-	{
-		const int32_t signedIntMaxValue = 0x7fffffff;
-
-		// allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
-		int64_t allocationAttempts = 0;
-
-		// the size of the static part of the trampoline is 467 Bytes. Additionally relocated Bytes are appended to the trampoline. The length of these instructions depends on the instructions relocated.
-		// relocated instructions can be longer than the original ones. At the time of writing this the worst case is jcc from 2 Bytes to 18 Bytes when relocated.
-		// the value here is just an upper bound that allows to double the size of the trampoline
-		const int trampolineLengthUpperBound = 1000;
-
-		// calculate the lowest and highest address than can be reached by a jmp rel32 when placing it at the hookAddress
-		int64_t lowestAddressReachableByFiveBytesJump = (int64_t)sourceAddress_ - signedIntMaxValue + 5;
-		if (lowestAddressReachableByFiveBytesJump < 0)
-		{
-			lowestAddressReachableByFiveBytesJump = 0;
-		}
-
-		int64_t highestAddressReachableByFiveBytesJump = (int64_t)sourceAddress_ + signedIntMaxValue + 5;
-
-		int64_t lowestAddressThatCanReachHighestRipRelativeAccess = highestRipRelativeMemoryAddress - signedIntMaxValue + 5;
-
-		// calculate the highest address that can still reach the lowest rip-relative access
-		int64_t highestAddressThatCanReachLowestRipRelativeAccess = lowestRipRelativeMemoryAccess + signedIntMaxValue - 5;
-
-		// we want to start allocation attempts with the highest address that can reach the lowest rip-relative memory access and is reachable with jmp rel32 from the hook address
-		int64_t initialTargetAddress = highestAddressThatCanReachLowestRipRelativeAccess;
-		if (initialTargetAddress > highestAddressReachableByFiveBytesJump)
-		{
-			initialTargetAddress = highestAddressReachableByFiveBytesJump;
-		}
-
-		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range of [%llx, %llx] with a trampoline maximum size of %d\n", lowestRipRelativeMemoryAccess, highestRipRelativeMemoryAddress, trampolineLengthUpperBound);
-		while (!trampoline_)
-		{
-			// allocation attempts are started from the highest possible address to the lowest. We substract dwPageSize to account for VirtualAlloc rounding down the target address to the next page boundary. 
-			// start with highest address that can both: 
-			// - reach lowest RIP-relative
-			// - can be reached by jmp rel32
-			int8_t* targetAddress = (int8_t*)initialTargetAddress - trampolineLengthUpperBound - (++allocationAttempts * systemInfo.dwPageSize);
-
-			// check if we are still high enough
-			// we know we failed to allocate with rel32 when one of these statements is true:
-			// - address is to low to be reached by rel32
-			// - address is to low to reach highestRipRelativeMemoryAccess
-			if (!((int64_t)targetAddress < lowestAddressReachableByFiveBytesJump) &&
-				!((int64_t)targetAddress < lowestAddressThatCanReachHighestRipRelativeAccess))
-			{
-				// try to allocate trampoline_ within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
-				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
-				// if the call with this target address fails we keep trying
-				trampoline_ = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-			}
-			else
-			{
-#ifdef _WIN64
-				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline_ = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
-				// we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
-				restrictedRelocation_ = true;
-
-				printf("[Warning] - MidfunctionHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
-				return true;
-
-#elif _WIN32
-				// we currently have no way to deal with this situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
-				return false;
-#endif
-				// this should not be reached
-				return false;
-			}
-		}
-		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %lld attempts)\n", trampoline_, allocationAttempts);
-		return true;
-	}
-
 #if _WIN64
-	void MidfunctionHook::GenerateTrampolineAndApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
+	void MidfunctionHook::ApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 	{
 		const int stubLength = 434;
 		const int controlFlowStubLength = 33;
@@ -598,7 +456,9 @@ namespace hookftw
 		{
 			// there was no rip-relative memory acccess
 			// attempt to allocate trampoline within +-2GB range of source address
-			if (!AllocateTrampoline())
+			trampoline_ = decoder.AllocateTrampoline(sourceAddress, &restrictedRelocation_);
+
+			if (!trampoline_)
 			{
 				printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 				return;
@@ -637,7 +497,9 @@ namespace hookftw
 		else
 		{
 			// there was rip-relative memory access (x64 only)
-			if (!AllocateTrampolineWithinBounds(lowestRelativeAddress, hightestRelativeAddress))
+			trampoline_ = decoder.AllocateTrampolineWithinBounds(sourceAddress, lowestRelativeAddress, hightestRelativeAddress, &restrictedRelocation_);
+
+			if (!trampoline_)
 			{
 				printf("[Error] - MidfunctionHook - Failed to allocate trampoline within bounds [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
 				return;
@@ -657,7 +519,9 @@ namespace hookftw
 			}
 		}
 #elif _WIN32
-		if (!AllocateTrampoline())
+		bool restrictedRelocation;
+		trampoline_ = decoder.AllocateTrampoline(sourceAddress, &restrictedRelocation);
+		if (!trampoline_)
 		{
 			printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 			return;
@@ -679,7 +543,7 @@ namespace hookftw
 		}
 
 		//Fills the newly allocated trampoline with instructions and redirects the code flow to it 
-		GenerateTrampolineAndApplyHook(sourceAddress, this->hookLength_, relocatedBytes, proxy);
+		ApplyHook(sourceAddress, this->hookLength_, relocatedBytes, proxy);
 	}
 
 
