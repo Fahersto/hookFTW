@@ -1,7 +1,11 @@
 #include <Windows.h>
 
+<<<<<<< HEAD
+
+=======
 #include <MidfunctionHook.h>
 #include <Detour.h>
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 #include <VFTHook.h>
 #include <Logger.h>
 #include <DbgSymbols.h>
@@ -85,6 +89,8 @@ DWORD __stdcall Run(LPVOID hModule)
 	*/
 	
 	
+<<<<<<< HEAD
+=======
 	//int8_t* target = baseAddressOfProcess + 0x1c0b; //victim.exe+1C0B - 48 8D 0D 26B00000     - lea rcx,[victim.exe+CC38] 
 	int8_t* target = baseAddressOfProcess + 0x1c76; //a couple of regular moves
 
@@ -104,6 +110,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	//hookftw::VEHHook vehHook2(*(int8_t**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"), (int8_t*)hkSound);
 
 	
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 
 	/*
 	
@@ -136,9 +143,12 @@ DWORD __stdcall Run(LPVOID hModule)
 	{
 		if (GetAsyncKeyState(VK_F1) & 0x1)
 		{
+<<<<<<< HEAD
+=======
 			//assignDetour.Unhook();
 			//vehHook.Unhook();
 			//vehHook2.Unhook();
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 			break;
 		}
 		if (GetAsyncKeyState(VK_F2) & 0x1)
@@ -209,6 +219,8 @@ DWORD __stdcall Run(LPVOID hModule)
 		}
 	);
 
+<<<<<<< HEAD
+=======
 	/*
 	hookftw::Hook assignTestHook(
 		dbgSymbols.GetAddressBySymbolName("assignTest"),
@@ -222,6 +234,7 @@ DWORD __stdcall Run(LPVOID hModule)
 	
 	//hookftw::VEHHook vehHook(dbgSymbols.GetAddressBySymbolName("assignTest"), (int8_t*)hkAssign);
 
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 	/*
 	hookftw::VFTHook cowVmtHook((void**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"));
 	cowVmtHook.Hook(0, &hookedCow);
@@ -236,7 +249,11 @@ DWORD __stdcall Run(LPVOID hModule)
 		{
 			//cowVmtHook.Unhook();
 			//catVmtHook.Unhook();
+<<<<<<< HEAD
+			//assignTestHook.Unhook();
+=======
 			//assignDetour.Unhook();
+>>>>>>> f94ed42b8ddd236adae9b9d85cdcc75821f157fe
 			//calculationHook.Unhook();
 			//vehHook.Unhook();
 			break;
