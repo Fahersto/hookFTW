@@ -38,16 +38,19 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength_, PAGE_READWRITE, &pageProtection);
 
 		// allocate space for stub + space for overwritten bytes + jumpback
-		trampoline_ = (int8_t*)VirtualAlloc(NULL, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		bool restrictedRelocation;
+		trampoline_ = decoder.HandleTrampolineAllocation(sourceAddress, &restrictedRelocation);
 		if (!trampoline_)
 		{
 			printf("[Error] - Detour - Failed to allocate trampoline\n");
+			return nullptr;
 		}
 	
-		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_);
+		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_, restrictedRelocation);
 		if (relocatedBytes.empty())
 		{
 			printf("[Error] - Detour - Relocation of bytes replaced by hook failed\n");
+			return nullptr;
 		}
 
 		//copy overwritten bytes to trampoline
@@ -130,17 +133,19 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength_, PAGE_READWRITE, &pageProtection);
 
 		// allocate trampoline
-		// TODO check for rip-relative instructions if we can reach original targets with rel32
-		trampoline_ = (int8_t*)VirtualAlloc(NULL, hookLength_ + stubJumpBackLength, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		bool restrictedRelocation;
+		trampoline_ = decoder.AllocateTrampoline(sourceAddress, &restrictedRelocation);
 		if (!trampoline_)
 		{
 			printf("[Error] - Detour - Failed to allocate trampoline\n");
+			return nullptr;
 		}
 
 		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_);
 		if (relocatedBytes.empty())
 		{
 			printf("[Error] - Detour - Relocation of bytes replaced by hook failed\n");
+			return nullptr;
 		}
 
 		// copy overwritten bytes to trampoline
