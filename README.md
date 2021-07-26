@@ -1,14 +1,24 @@
 ![hookftw banner](img/hookftw_banner.png)
-# hookftw - hooking for the win(dows)
+# hookFTW - hooking for the win(dows)
 A hooking library for Windows (32/64 Bit).
 
-## Setting up
+## Setting up using CMAKE
 1. Clone including submodules:
 ```
 git clone --recursive git@git.fslab.de:fstotz2s/hookftw.git
 ```
 2. Build the library using CMAKE.
 
+## Setting up manually
+1. Clone including submodules:
+```
+git clone --recursive https://git.fslab.de/fstotz2s/hookftw.git
+```
+2. Build hookFTW
+	- Include headers: hookftw/library/src
+	- Link hookftw.lib
+	- Link Zydis.lib
+	
 ## Documentation
 work in progress
 
