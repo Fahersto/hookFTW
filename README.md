@@ -16,7 +16,6 @@ work in progress
 
 ### Detour Hook
 ```C++
-
 // proxy function we change the control flow to
 int hookedCalculate(int x) 
 { 
@@ -35,9 +34,9 @@ originalFunction originalCalculate = (originalFunction)detourHook.Hook(target, (
 originalFunction(10);
 ```
 
+---
 
 ### Midfunction Hook
-
 Using a lamba:
 ```C++
 // use a midfunction hook. In this example we pass the proxy function as a lambda.
@@ -65,6 +64,8 @@ prologHook.Hook(targetAddress, proxyFunction);
 );
 ```
 
+---
+
 ### Vectored Exception Handler Hook
 ```C++
 int hookedCalculate(int x) 
@@ -77,8 +78,9 @@ hookftw::VEHHook vehHook;
 vehHook.Hook(targetAddress, (int8_t*)hookedCalculate);
 ```
 
+---
 
-### Vectored Exception Handler Hook
+### Virtual Function Table Hook
 ```C++
 // this address needs to be a pointer to a virtual function table 
 int8_t** vftable = nullptr;
