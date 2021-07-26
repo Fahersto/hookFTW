@@ -11,6 +11,15 @@
 namespace hookftw
 {
 #if _WIN64
+
+	/**
+	 * Populates the trampoline stubs and writes and hooks the target function by placing a JMP
+	 *
+	 * @param sourceAddress Address to apply the hook to
+	 * @param hookLength amount of bytes to overwrite with the hook
+	 * @param relocatedBytes relocated bytes overwritten by placing the hook JMP
+	 * @param proxy Function to be executed when hook is called
+	 */
 	void MidfunctionHook::ApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 	{
 		const int stubLength = 434;
@@ -253,6 +262,14 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
 #elif _WIN32
+	/**
+	 * Populates the trampoline stubs and writes and hooks the target function by placing a JMP
+	 *
+	 * @param sourceAddress Address to apply the hook to
+	 * @param hookLength amount of bytes to overwrite with the hook
+	 * @param relocatedBytes relocated bytes overwritten by placing the hook JMP
+	 * @param proxy Function to be executed when hook is called
+	 */
 	void MidfunctionHook::ApplyHook(int8_t* sourceAddress, int hookLength, std::vector<int8_t> relocatedBytes, void __fastcall proxy(context* ctx))
 	{
 		const int stubLength = 173;
@@ -424,7 +441,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Creates a hook.
+	 * Creates a midfunction hook.
 	 *
 	 * @param sourceAddress Address to apply the hook to
 	 * @param proxy Function to be executed when hook is called
@@ -450,7 +467,6 @@ namespace hookftw
 			this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 14);
 		}
 #endif
-		
 		// the trampoline has a part with static length (save registers, call proxy, restore registers, control flow) followed by a part with dynamic length (relocated bytes).
 		// we need to know where the dynamic parts start to relocate rip-relative memory accesses
 		int8_t* startOfRelocation = trampoline_ + staticTrampolineLength_ + 1;
@@ -461,7 +477,6 @@ namespace hookftw
 			printf("[Error] - MidfunctionHook - Relocation of bytes replaced by hook failed\n");
 			return;
 		}
-
 		//Fills the newly allocated trampoline with instructions and redirects the code flow to it 
 		ApplyHook(sourceAddress, this->hookLength_, relocatedBytes, proxy);
 	}
@@ -504,6 +519,9 @@ namespace hookftw
 		returnAddressFromTrampoline_ = returnValue;
 	}
 
+	/**
+	 * Skips the invocation of the original call of the hooked function by executing a RET instruction to return the the hooked functions caller.
+	 */
 	void MidfunctionHook::SkipOriginalFunction()
 	{
 		// this is the location of the RET instruction at the end of the trampoline_

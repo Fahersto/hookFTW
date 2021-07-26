@@ -57,7 +57,6 @@ namespace hookftw
 
 	/**
 	* \brief Unhooks all previously hooked functions in the virtual function table.
-	*
 	*/
 	void VFTHook::Unhook()
 	{

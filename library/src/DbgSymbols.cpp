@@ -11,6 +11,11 @@ namespace hookftw
     bool DbgSymbols::symbolsLoaded_ = false;
     int64_t DbgSymbols::baseAddress_ = NULL;
 
+    /**
+     * Loads debug symbols of the current process.
+     *
+     * @param path to search for the .pdb file. If you path is given the default paths are used.
+     */
     DbgSymbols::DbgSymbols(char* path)
     {
     	if (!symbolsLoaded_)
@@ -92,9 +97,10 @@ namespace hookftw
         return TRUE;
     }
 
-	/**
-	 * Enumerates all symbols in the binary and logs them.
-	 */
+
+    /**
+     * Enumerates all symbols in the binary and logs them.
+     */
     void DbgSymbols::EnumerateSymbols()
     {
         if (!symbolsLoaded_)

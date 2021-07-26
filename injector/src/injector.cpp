@@ -11,14 +11,14 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	// Get command line arguments
+	// get command line arguments
 	DWORD processId = std::stoi(argv[1]);
 	std::string dllPath = argv[2];
 	
 	auto currentPath = std::filesystem::current_path();
 	auto name = currentPath.generic_string();
 
-	// Aquire a handle to the target process
+	// aquire a handle to the target process
 	HANDLE processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
 	if(!processHandle)
 	{
@@ -26,35 +26,23 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	// Allocate memory in the target process
-	LPVOID remoteMemory = VirtualAllocEx(
-		processHandle,
-		nullptr,
-		MAX_PATH,
-		MEM_RESERVE | MEM_COMMIT,
-		PAGE_READWRITE
-	);
+	// allocate memory in the target process
+	LPVOID remoteMemory = VirtualAllocEx(processHandle, nullptr, MAX_PATH, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!remoteMemory)
 	{
 		printf("Error - Failed to allocate memory in target process\n");
 		return 1;
 	}
 
-	// Write path of .dll to target process
-	bool memoryWritten = WriteProcessMemory(
-		processHandle, 
-		remoteMemory, 
-		dllPath.c_str(),
-		dllPath.length(),
-		nullptr
-	);
+	// write path of .dll to target process
+	bool memoryWritten = WriteProcessMemory(processHandle, remoteMemory, dllPath.c_str(), dllPath.length(), nullptr);
 	if(!memoryWritten)
 	{
 		printf("Error - Failed to write .dll path to target process\n");
 		return 1;
 	}
 
-	// Create a thread in the target process which loads the .dll
+	// create a thread in the target process which loads the .dll
 	HANDLE hThread = CreateRemoteThread(
 		processHandle,
 		nullptr,
@@ -70,10 +58,9 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	// Cleanup
+	// cleanup
 	CloseHandle(processHandle);
-	
-	//VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE); //this is a race condition with the remote thread
+	//virtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE); //this is a race condition with the remote thread
 	
 	return 0;
 }

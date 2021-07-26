@@ -70,8 +70,8 @@ namespace hookftw
 	 */
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
-		//For reference see: https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
-		//Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (x64 only)
+		// For reference see: https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
+		// Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (x64 only)
 		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM &&
 			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table	
 	}
@@ -139,7 +139,6 @@ namespace hookftw
 			rellocatedbytes.insert(rellocatedbytes.end(), rellocatedCallInstructions, rellocatedCallInstructions + rellocatedCallInstructionsLength);
 #endif
 		}
-
 		// the program can return to the return address pushed on the stack (at time of the call) at any time.
 		// if the hook is removed (and therefore the trampoline freed) the return address might not contain valid code --> crash
 		printf("[Warning] - Decoder - Relocated a call instruction. Unhooking is not safe!\n");
@@ -189,8 +188,8 @@ namespace hookftw
 		rellocatedbytes.push_back(0x5);				//
 
 		// use relative jmp
-		//write JMP from original code to trampoline_
-		//we substract 5 because 
+		// write JMP from original code to trampoline_
+		// we substract 5 because 
 		int32_t newRelativeAddress = (int32_t)((int64_t)originalJumpTarget - (int64_t)relocatedInstructionAddress - 5 - 2 - instruction.length);
 
 		rellocatedbytes.push_back(0xe9);																				//opcodes = JMP rel32
@@ -217,7 +216,7 @@ namespace hookftw
 		// copy original instruction
 		memcpy(tmpBuffer, instructionAddress, instruction.length);
 
-		//calculate the absolute address of the rip-relative address
+		// calculate the absolute address of the rip-relative address
 		const int8_t* absoluteAddress = instructionAddress + instruction.length + instruction.raw.disp.value;
 
 		const int32_t relocatedRelativeAddress = absoluteAddress - relocatedInstructionAddress - instruction.length;
@@ -225,7 +224,7 @@ namespace hookftw
 		// write relocated relative address to the relocated instrucions displacement
 		*(int32_t*)&tmpBuffer[instruction.raw.disp.offset] = relocatedRelativeAddress;
 
-		//add bytes of relocated instructions to relocated instuctions
+		// add bytes of relocated instructions to relocated instuctions
 		rellocatedbytes.insert(rellocatedbytes.end(), tmpBuffer, tmpBuffer + instruction.length);
 
 		free(tmpBuffer);
@@ -279,7 +278,6 @@ namespace hookftw
 			- XBEGIN //not handled
 			- rip-relative memory access (ModR/M addressing)
 		*/
-
 		std::vector<int8_t> relocatedbytes;
 
 		int amountOfBytesRellocated = 0;
@@ -299,7 +297,7 @@ namespace hookftw
 			// the order here matters. We start with more specific relocations. There are for example call instructions that use rip-relative memory accesses
 			if (IsCallInstruction(instruction))
 			{
-				//handle relocation of call instructions
+				// handle relocation of call instructions
 				RelocateCallInstruction(instruction, currentAddress, relocatedbytes);
 			}
 			else if (IsBranchInstruction(instruction))
@@ -316,7 +314,7 @@ namespace hookftw
 					printf("[Error] - Decoder - Can't relocate a rip-relative memory access with restricted relocation enabled (trampoline is not in rel32 range). This is currently not supported.\n");
 					return std::vector<int8_t>();
 				}
-				//handle relocation of rip-relative memory addresses (x64 only)
+				// handle relocation of rip-relative memory addresses (x64 only)
 				RelocateRipRelativeMemoryInstruction(instruction, currentAddress, targetAddress + relocatedbytes.size(), relocatedbytes);
 			}
 			else if (instruction.mnemonic == ZYDIS_MNEMONIC_XBEGIN)
@@ -330,7 +328,7 @@ namespace hookftw
 			}
 			else
 			{
-				//instruction does not need to be modified. Just copy the original Bytes.
+				// instruction does not need to be modified. Just copy the original Bytes.
 				relocatedbytes.insert(relocatedbytes.end(), currentAddress, currentAddress + instruction.length);
 			}
 			amountOfBytesRellocated += instruction.length;
@@ -350,7 +348,7 @@ namespace hookftw
 	{
 		int byteCount = 0;
 
-		//we will atleast get "length" bytes. To avoid splitting an instruction we might get more.
+		// we will atleast get "length" bytes. To avoid splitting an instruction we might get more.
 		while (byteCount < length)
 		{
 			ZydisDecodedInstruction instruction;
@@ -483,7 +481,13 @@ namespace hookftw
 		return true;
 	}
 
-
+	/**
+	 *  \brief Attempts to allocate the trampoline within +-2GB range of the sourceAddress (and rip-relative memory accesses)
+	 *
+	 *	@param sourceAddress address to allocate the trampoline for (usually address where hook is placed)
+	 *  @param restrictedRelocation [out] true if trampoline could not be allocated within +-2GB range. False otehrwise.
+	 *	@return pointer to the newly allocated memory page (trampoline)
+	 */
 	int8_t* Decoder::HandleTrampolineAllocation(int8_t* sourceAddress, bool* restrictedRelocation)
 	{
 		int8_t* trampoline = nullptr;
@@ -564,14 +568,17 @@ namespace hookftw
 			printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 			return nullptr;
 		}
-
-		// only the 5 byte JMP rel32 exists in 32bit
-		//this->hookLength_ = fiveBytesWithoutCuttingInstructions;
 #endif
 		return trampoline;
 	}
 
-
+	/**
+	 *  \brief Attempts to allocate the trampoline within +-2GB range of the sourceAddress
+	 *
+	 *	@param sourceAddress address to allocate the trampoline for (usually address where hook is placed)
+	 *  @param restrictedRelocation [out] true if trampoline could not be allocated within +-2GB range. False otherwise.
+	 *	@return pointer to the newly allocated memory page (trampoline)
+	 */
 	int8_t* Decoder::AllocateTrampoline(int8_t* sourceAddress, bool* restrictedRelocation)
 	{
 		// we attempt to use a rel32 JMP as this allows to relocate RIP-relative memory accesses conveniently
@@ -614,7 +621,7 @@ namespace hookftw
 			else
 			{
 #ifdef _WIN64
-				//If we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
+				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
 				trampoline = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
 				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses

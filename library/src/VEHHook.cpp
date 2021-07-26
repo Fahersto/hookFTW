@@ -79,6 +79,12 @@ namespace hookftw
 	{
 	}
 
+	/**
+	 * Creates a VEH hook.
+	 *
+	 * @param originalFunction function to apply the hook to
+	 * @param hookedFunction function to call instead of theoriginal
+	 */
 	void VEHHook::Hook(int8_t* originalFunction, int8_t* hookedFunction)
 	{
 		MEMORY_BASIC_INFORMATION mbiOriginal;
@@ -108,6 +114,9 @@ namespace hookftw
 		VirtualProtect(originalFunction, 1, PAGE_EXECUTE_READ | PAGE_GUARD, &originalPageProtection_);
 	}
 
+	/**
+	 * Unhooks a previously hooked function by removing the vectored exception handler.
+	 */
 	void VEHHook::Unhook()
 	{
 		if (!handleVEH_)

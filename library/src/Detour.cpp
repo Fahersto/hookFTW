@@ -8,11 +8,13 @@
 namespace hookftw
 {
 #ifdef _WIN64
-	//
-	// Hooks a function by placing jumping to a proxy function using 14 bytes:
-	// 0xff, 0x25, 0x0, 0x0, 0x0, 0x0					JMP[rip + 0]
-	// 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	absolute address of jump
-	// the trampoline (return value of DetourHook::Hook()) runs the overwritten instructions and returns back to the original code
+	/**
+	 * Creates a detour hook.
+	 *
+	 * @param sourceAddress Address to apply the hook to
+	 * @param targetAddress Function to be executed when hook is called
+	 * @return returns the address of the trampoline which can be used to call the original function
+	 */
 	int8_t* Detour::Hook(int8_t* sourceAddress, int8_t* targetAddress)
 	{
 		// remember for unhooking
@@ -103,6 +105,9 @@ namespace hookftw
 		return trampoline_;
 	}
 
+	/**
+	 * Unhooks a detour hook.
+	 */
 	void Detour::Unhook()
 	{
 		// make page writeable
@@ -121,11 +126,13 @@ namespace hookftw
 	}
 
 #else
-	//
-	// Hooks a function by placing a jump (JMP 0xE9) from the original function to the proxy function
-	// The proxy function is expected to return to the trampoline (return value of DetourHook::Hook()) which runs the overwritten instructions and returns back to the original code
-	// Only for x86 since JMP (0xE9) hast 32bit target address
-	// Important: the overwritten bytes are NOT relocated meaning only position independet instructions can be overwritten
+	/**
+	 * Creates a detour hook.
+	 *
+	 * @param sourceAddress Address to apply the hook to
+	 * @param targetAddress Function to be executed when hook is called
+	 * @return returns the address of the trampoline which can be used to call the original function
+	 */
 	int8_t* Detour::Hook(int8_t* sourceAddress, int8_t* targetAddress)
 	{
 		// length of jmp rel32
@@ -198,8 +205,9 @@ namespace hookftw
 		return trampoline_;
 	}
 
-	//
-	// Unhooks a previously hooked function by copying back the original bytes
+	/**
+	 * Unhooks a previously hooked function by copying back the original bytes
+	 */
 	void Detour::Unhook()
 	{
 		// make page writeable

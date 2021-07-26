@@ -10,7 +10,7 @@ namespace hookftw
  * \brief Registers used in 64 Bit of the x86 instruction set
  *
  * The registers can be directly read from and written to inside the hook callback function.
- * TODO fpu registers? (st0 - st7). They seem unused in 64bit though.
+ * TODO fpu registers? (st0 - st7). Also called legacy registers. They are still sometimes used in 32 Bit applications it seems.
  */
 struct registers
 {

@@ -50,7 +50,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Closes the console window used for debugging
+	 * Closes the console window used for debugging.
 	 * 
 	 */
 	void Logger::CloseDebuggingConsole()
