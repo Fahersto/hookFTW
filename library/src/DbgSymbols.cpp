@@ -14,7 +14,7 @@ namespace hookftw
     /**
      * Loads debug symbols of the current process.
      *
-     * @param path to search for the .pdb file. If you path is given the default paths are used.
+     * @param path to search for the .pdb file. If no path is given the default paths are used.
      */
     DbgSymbols::DbgSymbols(char* path)
     {
@@ -99,7 +99,7 @@ namespace hookftw
 
 
     /**
-     * Enumerates all symbols in the binary and logs them.
+     * Enumerates all symbols in the binary and writes them to a log file.
      */
     void DbgSymbols::EnumerateSymbols()
     {
