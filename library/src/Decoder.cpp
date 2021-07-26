@@ -519,7 +519,7 @@ namespace hookftw
 			}
 
 			// trampoline could not be allocated withing +-2gb range
-			if (restrictedRelocation)
+			if (*restrictedRelocation)
 			{
 				// there were no rip-relative memory accesses within fiveBytesWithoutCuttingInstructions of the hook address.
 				// since we failed to allocate withing +-2GB range we now need to check fourteenBytesWithoutCuttingInstructions for rip-relative instructions
@@ -551,7 +551,7 @@ namespace hookftw
 
 			// we know there is rip-relative memory access within fiveBytesWithoutCuttingInstructions bytes of the hooking address which is supported
 			// if we failed to allocate the trampoline withing +-2GB range it is not supported
-			if (restrictedRelocation)
+			if (*restrictedRelocation)
 			{
 				printf("[Error] - MidfunctionHook - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
 				return nullptr;
