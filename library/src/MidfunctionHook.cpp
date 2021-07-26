@@ -345,7 +345,6 @@ namespace hookftw
 		// write jump from trampoline to original code
 		*(int32_t*)&stubJumpBack[1] = (int32_t)&sourceAddress[hookLength] - (int32_t)&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()] - jmpStubLength;
 
-
 		int8_t controllFlowStub[controlFlowStubLength] = {
 			0xA3, 0x44, 0x33, 0x22, 0x11,	//mov ds : 0x11223344,eax
 			0xB8, 0x44, 0x33, 0x22, 0x11,	//mov eax,0x11223344
@@ -391,6 +390,9 @@ namespace hookftw
 		// make trampoline executable
 		DWORD pageProtection;
 		VirtualProtect(trampoline_, stubLength + hookLength + jmpStubLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+
+		// flush instruction cache for new executable region to ensure cache coherency
+		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, stubLength + controlFlowStubLength + relocatedBytes.size()  + jmpStubLength);
 
 		// make page of original code writeable
 		VirtualProtect(sourceAddress, hookLength, PAGE_READWRITE, &pageProtection);

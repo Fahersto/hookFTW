@@ -76,11 +76,16 @@ namespace hookftw
 			sourceAddress[i] = 0x90;
 		}
 
-		//restore page protection
+		// restore page protection
 		VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
-		VirtualProtect(trampoline_, relocatedBytes.size() + 14, PAGE_EXECUTE_READWRITE, &pageProtection);
+
+		// make trampoline executable
+		VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+
+		// flush instruction cache for new executable region to ensure cache coherency
+		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
 	
-		//return the address of the trampoline so we can call it to invoke the original function
+		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
 	}
 
@@ -109,15 +114,13 @@ namespace hookftw
 	// Important: the overwritten bytes are NOT relocated meaning only position independet instructions can be overwritten
 	int8_t* Detour::Hook(int8_t* sourceAddress, int8_t* targetAddress)
 	{
-		// length of detour
+		// length of jmp rel32
 		const int stubJumpBackLength = 5;
 
 		Decoder decoder;
-
-		// TODO we currently assume that we can reach the trampole with rel32.
 		int lengthWithoutCuttingInstructionsInHalf = decoder.GetLengthOfInstructions(sourceAddress, stubJumpBackLength);
 
-		// 5 bytes are required to place detour
+		// 5 bytes are required for jmp rel32
 		assert(lengthWithoutCuttingInstructionsInHalf >= stubJumpBackLength);
 
 		// remember for unhooking
@@ -141,6 +144,7 @@ namespace hookftw
 			return nullptr;
 		}
 
+		// relocate to be overwritten instructions to trampoline
 		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, lengthWithoutCuttingInstructionsInHalf, trampoline_);
 		if (relocatedBytes.empty())
 		{
@@ -148,7 +152,7 @@ namespace hookftw
 			return nullptr;
 		}
 
-		// copy overwritten bytes to trampoline
+		// copy relocated instructions to trampoline
 		memcpy(trampoline_, relocatedBytes.data(), relocatedBytes.size());
 
 		int8_t* addressAfterRelocatedBytes = trampoline_ + relocatedBytes.size();
@@ -171,7 +175,10 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
 
 		// make trampoline executable
-		VirtualProtect(trampoline_, relocatedBytes.size() + 5, PAGE_EXECUTE_READWRITE, &pageProtection);
+		VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+
+		// flush instruction cache for new executable region to ensure cache coherency
+		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
 	
 		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
