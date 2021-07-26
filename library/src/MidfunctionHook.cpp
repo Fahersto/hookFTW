@@ -432,8 +432,7 @@ namespace hookftw
 	void MidfunctionHook::Hook(int8_t* sourceAddress, void __fastcall proxy(context* ctx))
 	{
 		this->sourceAddress_ = sourceAddress;
-		this->hookLength_ = 5;
-
+		
 		Decoder decoder;
 		trampoline_ = decoder.HandleTrampolineAllocation(sourceAddress, &restrictedRelocation_);
 		if (!trampoline_)
@@ -441,12 +440,14 @@ namespace hookftw
 			return;
 		}
 
+		this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 5);
+
 #ifdef _WIN64
 		if (restrictedRelocation_)
 		{
 			// restricted relocation means that we couldn't allocate the trampoline within +-2GB range
 			// for 64 bit we can still hook using an aboslute jmp that requires 14 bytes
-			this->hookLength_ = 14;
+			this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 14);
 		}
 #endif
 		
