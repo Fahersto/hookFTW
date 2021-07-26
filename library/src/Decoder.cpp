@@ -591,11 +591,17 @@ namespace hookftw
 
 		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range of %p\n", sourceAddress);
 		int8_t* trampoline = nullptr;
+		int64_t targetAddress = 0;
 		while (!trampoline)
 		{
+#ifdef _WIN64
 			// start with the highest possible address and go down by one pageSize for every attempt. VirtualAlloc rounds down to nearest multiple of allocation granularity.
 			// we start by substracting 1 page (++allocationAttempts) to account for VirtualAlloc rounding down the target address to the next page boundary
-			int64_t targetAddress = (int64_t)sourceAddress + signedIntMaxValue + 5 - (++allocationAttempts * systemInfo.dwPageSize);
+			targetAddress = (int64_t)sourceAddress + signedIntMaxValue + 5 - (++allocationAttempts * systemInfo.dwPageSize);
+#elif _WIN32
+			// for 32 bit only addresses up to 0x7fffffff are in user mode and we can only allocate user mode memory
+			targetAddress = signedIntMaxValue - ++allocationAttempts * systemInfo.dwPageSize;
+#endif
 
 			// check if the target address can still be reached with rel32. If the target address is too low, we failed to allocate it withing JMP rel32 range.
 			if ((int64_t)targetAddress >= lowestAddressReachableByFiveBytesJump)
