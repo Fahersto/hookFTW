@@ -7,6 +7,7 @@
 #include <Zydis/DecoderTypes.h>
 
 #include "Decoder.h"
+#include "Trampoline.h"
 
 namespace hookftw
 {
@@ -450,13 +451,14 @@ namespace hookftw
 	{
 		this->sourceAddress_ = sourceAddress;
 		
-		Decoder decoder;
-		trampoline_ = decoder.HandleTrampolineAllocation(sourceAddress, &restrictedRelocation_);
+		Trampoline trampoline;
+		trampoline_ = trampoline.HandleTrampolineAllocation(sourceAddress, &restrictedRelocation_);
 		if (!trampoline_)
 		{
 			return;
 		}
 
+		Decoder decoder;
 		this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 5);
 
 #ifdef _WIN64

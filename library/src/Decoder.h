@@ -33,9 +33,5 @@ namespace hookftw
 		std::vector<int8_t*> FindRelativeInstructionsOfType(int8_t* startAddress, RelativeInstruction type, int length);
 		bool CalculateRipRelativeMemoryAccessBounds(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress);
 		std::vector<int8_t> Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress, bool restrictedRelocation = false);
-
-		int8_t* HandleTrampolineAllocation(int8_t* sourceAddress, bool* restrictedRelocation);
-		int8_t* AllocateTrampoline(int8_t* sourceAddress, bool* restrictedRelocation);
-		int8_t* AllocateTrampolineWithinBounds(int8_t* sourceAddress, int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress, bool* restrictedRelocation);
 	};
 }

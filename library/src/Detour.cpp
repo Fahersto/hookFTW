@@ -1,6 +1,7 @@
 #include "Detour.h"
 
 #include "Decoder.h"
+#include "Trampoline.h"
 
 #include <cstdint>
 #include <cassert>
@@ -20,16 +21,17 @@ namespace hookftw
 		// remember for unhooking
 		this->sourceAddress_ = sourceAddress;
 
-		Decoder decoder;
 		// allocate space for stub + space for overwritten bytes + jumpback
+		Trampoline trampoline;
 		bool restrictedRelocation;
-		trampoline_ = decoder.HandleTrampolineAllocation(sourceAddress, &restrictedRelocation);
+		trampoline_ = trampoline.HandleTrampolineAllocation(sourceAddress, &restrictedRelocation);
 		if (!trampoline_)
 		{
 			printf("[Error] - Detour - Failed to allocate trampoline\n");
 			return nullptr;
 		}
 
+		Decoder decoder;
 		if (restrictedRelocation)
 		{
 			this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 5);;
@@ -157,8 +159,9 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength_, PAGE_READWRITE, &pageProtection);
 
 		// allocate trampoline
+		Trampoline trampoline;
 		bool restrictedRelocation;
-		trampoline_ = decoder.AllocateTrampoline(sourceAddress, &restrictedRelocation);
+		trampoline_ = trampoline.AllocateTrampoline(sourceAddress, &restrictedRelocation);
 		if (!trampoline_)
 		{
 			printf("[Error] - Detour - Failed to allocate trampoline\n");
