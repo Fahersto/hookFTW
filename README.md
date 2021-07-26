@@ -1,35 +1,90 @@
 ![hookftw banner](img/hookftw_banner.png)
 # hookftw - hooking for the win(dows)
-A hooking library for Windows (32/64 Bit)
+A hooking library for Windows (32/64 Bit).
 
-# How to install
-Clone including submodules (zydis).
+## Setting up
+1. Clone including submodules:
+```
+git clone --recursive git@git.fslab.de:fstotz2s/hookftw.git
+```
+2. Build the library using CMAKE.
 
-# Documentation
+## Documentation
 work in progress
 
-# Usage example
+## Usage example
+
+### Detour Hook
 ```C++
-int squareThenSum(int x, int y)
-{
-	return x * x + y * y;
+
+// proxy function we change the control flow to
+int hookedCalculate(int x) 
+{ 
+	printf("calculate called, returning %d\n", x); 
+	return x; 
 }
 
-//To be used at the start address of the function
-hookftw::FuncStartHook funcStartHook(
-	squareThenSum, //start of the function
-	[](hookftw::context* ctx){
-		printf("Inside FuncStartHook\n");
-		printf("CallOriginal %d\n", ctx->CallOriginal<int>(2, 3));
+// defining a type to be able to invoke the trampoline as function
+using originalFunction = int(__fastcall*) (int x);
+
+// use a detour hook. Note that this hooking methods only supports hooking at a start of a function.
+hookftw::Detour detourHook;
+originalFunction originalCalculate = (originalFunction)detourHook.Hook(target, (int8_t*)hookedCalculate);
+
+// call original function
+originalFunction(10);
+```
+
+
+### Midfunction Hook
+
+Using a lamba:
+```C++
+// use a midfunction hook. In this example we pass the proxy function as a lambda.
+hookftw::MidfunctionHook prologHook;
+prologHook.Hook(
+	targetAddress,
+	[](hookftw::context* ctx) {
+		printf("inside hooked function\n"); 
+		ctx->PrintRegister();
 	}
 );
+```
 
-//hook at arbitrary address within the function
-hookftw::Hook hook(
-	squareThenSum + 0x5,
-	[](hookftw::registers* registers) {
-		printf("Inside the hooked function\n");
-	}
+Using a function pointer:
+```C++
+// use a midfunction hook. In this example we pass the proxy function as a lambda.
+
+void proxyFunction(hookftw::context* ctx){
+	printf("inside hooked function\n"); 
+	ctx->PrintRegister();
+}
+
+hookftw::MidfunctionHook prologHook;
+prologHook.Hook(targetAddress, proxyFunction);
 );
+```
 
+### Vectored Exception Handler Hook
+```C++
+int hookedCalculate(int x) 
+{ 
+	printf("calculate called, returning %d\n", x); 
+	return x; 
+}
+
+hookftw::VEHHook vehHook;
+vehHook.Hook(targetAddress, (int8_t*)hookedCalculate);
+```
+
+
+### Vectored Exception Handler Hook
+```C++
+// this address needs to be a pointer to a virtual function table 
+int8_t** vftable = nullptr;
+
+hookftw::VFTHook vftHook(vftable);
+
+// in this example we hook the fourth function in the vftable
+vftHook.Hook(3, (int8_t*)hookedCalculate)
 ```
