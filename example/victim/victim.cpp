@@ -75,7 +75,20 @@ int calculate(int x)
 	return returnVal * 5;
 }
 
+int __stdcall stdCallFunc(int x, int y, int z)
+{
+	return x * x + y * y + z * z;
+}
 
+int __fastcall fastCallFunc(int x, int y, int z)
+{
+	return x * x + y * y + z * z;
+}
+
+int __cdecl cdeclCallFunc(int x, int y, int z)
+{
+	return x * x + y * y + z * z;
+}
 
 
 int main()
@@ -98,6 +111,10 @@ int main()
 		int test = 1337;
 		test = calculate(1337);
 		printf("calculate = %d\n", test);
+
+		printf("stdCallFunc = %d\n", stdCallFunc(2,3,5));
+		printf("cdeclCallFunc = %d\n", cdeclCallFunc(2, 3, 5));
+		printf("fastCallFunc = %d\n", fastCallFunc(2, 3, 5));
 
 		printf("Animals\n");
 		for (auto& animal : animals)
