@@ -66,14 +66,19 @@ namespace hookftw
 	 *  \brief Determines if the passed instruction contains a rip-relateive memory access
 	 *
 	 *	@param instruction instruction to be examined
-	 *	@return true if the passed instruction contains a rip-relative memory access (x64 only,). false otherwhise.
+	 *	@return true if the passed instruction contains a rip-relative memory access (x64 only). false otherwhise.
 	 */
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
+#ifdef _WIN64
 		// For reference see: https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
 		// Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (x64 only)
 		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM &&
 			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table	
+#elif _WIN32
+		// there is no RIP-relative memory address in 32 bit
+		return false;
+#endif
 	}
 
 	/**
