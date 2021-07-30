@@ -34,7 +34,10 @@ int _cdecl hkGetNumber()
 	return rand();
 }
 
-
+void proxyFunction(hookftw::context* ctx){
+	printf("inside hooked function\n"); 
+	ctx->PrintRegister();
+}
 
 
 #if _WIN64
@@ -84,11 +87,24 @@ DWORD __stdcall Run(LPVOID hModule)
 	}
 	);
 	*/
-	
-	
+
+	hookftw::MidfunctionHook midfunctionHook;
+	midfunctionHook.Hook(
+		dbgSymbols.GetAddressBySymbolName("stdCallFunc"),
+		//baseAddressOfProcess + 0x1b4e, //call
+		//baseAddressOfProcess + 0x1b3f, //je
+		[](hookftw::context* ctx) {
+			ctx->PrintRegister();
+			//*(int32_t*)(ctx->esp + 0x4) = 0x2;
+			//ctx->SkipOriginalFunction();
+			ctx->rax = ctx->CallOriginal<int>(hookftw::CallingConvention::stdcall_call, 2, 3, 5);
+		}
+	);
+
 	//int8_t* target = baseAddressOfProcess + 0x1c0b; //victim.exe+1C0B - 48 8D 0D 26B00000     - lea rcx,[victim.exe+CC38] 
 	int8_t* target = baseAddressOfProcess + 0x1c76; //a couple of regular moves
 
+	/*
 	hookftw::MidfunctionHook prologHook;
 	prologHook.Hook(
 		//baseAddressOfProcess + 0x3206,
@@ -97,7 +113,15 @@ DWORD __stdcall Run(LPVOID hModule)
 			ctx->PrintRegister();
 		}
 	);
+
+	hookftw::Detour detourHook;
+	detourHook.Hook(target, (int8_t*)hookedCalculate);
 	
+	int8_t** vftable = nullptr;
+	hookftw::VFTHook vftHook(vftable);
+	vftHook.Hook(3, (int8_t*)hookedCalculate);
+	*/
+
 
 	//hookftw::VEHHook vehHook;
 	//vehHook.Hook(baseAddressOfProcess + 0x1210, (int8_t*)hkGetNumber);
@@ -195,20 +219,21 @@ DWORD __stdcall Run(LPVOID hModule)
 	assignDetour.Hook(dbgSymbols.GetAddressBySymbolName("calculate"), (int8_t*)target);
 	*/
 
-	hookftw::MidfunctionHook midfunctionHook;
 	
+	/*
+	hookftw::MidfunctionHook midfunctionHook;
 	midfunctionHook.Hook(
-		dbgSymbols.GetAddressBySymbolName("calculate"),
+		dbgSymbols.GetAddressBySymbolName("fastCallFunc"),
 		//baseAddressOfProcess + 0x1b4e, //call
 		//baseAddressOfProcess + 0x1b3f, //je
 		[](hookftw::context* ctx) {
-			//ctx->PrintRegister();
+			ctx->PrintRegister();
 			//*(int32_t*)(ctx->esp + 0x4) = 0x2;
-			ctx->SkipOriginalFunction();
-			ctx->eax = ctx->CallOriginal<int>(2);
+			//ctx->SkipOriginalFunction();
+			ctx->eax = ctx->CallOriginal<int>(hookftw::CallingConvention::fastcall_call, 2,3,5);
 		}
 	);
-
+	*/
 
 	/*
 	hookftw::Hook assignTestHook(
@@ -221,15 +246,17 @@ DWORD __stdcall Run(LPVOID hModule)
 	);
 	*/
 	
-	//hookftw::VEHHook vehHook(dbgSymbols.GetAddressBySymbolName("assignTest"), (int8_t*)hkAssign);
 
-	/*
-	hookftw::VFTHook cowVmtHook((void**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"));
-	cowVmtHook.Hook(0, &hookedCow);
+	hookftw::VEHHook vehHook;
+	vehHook.Hook(dbgSymbols.GetAddressBySymbolName("calculate"), (int8_t*)hookedCalculate);
+	
+	
+	hookftw::VFTHook cowVmtHook((int8_t**)dbgSymbols.GetAddressBySymbolName("Cow::`vftable'"));
+	cowVmtHook.Hook(0, (int8_t*)hookedCow);
 
-	hookftw::VFTHook catVmtHook((void**)dbgSymbols.GetAddressBySymbolName("Cat::`vftable'"));
-	catVmtHook.Hook(0, &hookedCat);
-	*/
+	hookftw::VFTHook catVmtHook((int8_t**)dbgSymbols.GetAddressBySymbolName("Cat::`vftable'"));
+	catVmtHook.Hook(0, (int8_t*)hookedCat);
+	
 
 	while (true)
 	{
