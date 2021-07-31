@@ -1,5 +1,5 @@
 ![hookftw banner](img/hookftw_banner.png)
-# hookFTW - hooking for the win(dows)
+# hookFTW - hook for the win(dows)
 A hooking library for Windows (32/64 Bit).
 
 ## Setting up using CMAKE
