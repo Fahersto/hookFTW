@@ -107,26 +107,6 @@ namespace hookftw
 		return trampoline_;
 	}
 
-	/**
-	 * Unhooks a detour hook.
-	 */
-	void Detour::Unhook()
-	{
-		// make page writeable
-		DWORD oldProtection;
-		VirtualProtect(sourceAddress_, hookLength_, PAGE_EXECUTE_READWRITE, &oldProtection);
-
-		// copy back original bytes
-		memcpy(sourceAddress_, originalBytes_, hookLength_);
-
-		// restore page protection
-		VirtualProtect(sourceAddress_, hookLength_, oldProtection, &oldProtection);
-
-		//clean up allocated memory
-		//delete[] originalBytes_;
-		//delete[] trampoline_;
-	}
-
 #else
 	/**
 	 * Creates a detour hook.
@@ -208,25 +188,28 @@ namespace hookftw
 		return trampoline_;
 	}
 
+#endif
+
 	/**
-	 * Unhooks a previously hooked function by copying back the original bytes
+	 * Unhooks a detour hook.
 	 */
 	void Detour::Unhook()
 	{
 		// make page writeable
-		DWORD dwback;
-		VirtualProtect(sourceAddress_, hookLength_, PAGE_READWRITE, &dwback);
+		DWORD oldProtection;
+		VirtualProtect(sourceAddress_, hookLength_, PAGE_EXECUTE_READWRITE, &oldProtection);
 
 		// copy back original bytes
 		memcpy(sourceAddress_, originalBytes_, hookLength_);
 
 		// restore page protection
-		VirtualProtect(sourceAddress_, hookLength_, dwback, &dwback);
+		VirtualProtect(sourceAddress_, hookLength_, oldProtection, &oldProtection);
 
 		// clean up allocated memory
-		//delete[] originalBytes_;
-		//delete[] trampoline_;
+		delete[] originalBytes_;
+
+		// free trampolin memory page
+		VirtualFree(trampoline_, 0, MEM_RELEASE);
 	}
-#endif
 
 }

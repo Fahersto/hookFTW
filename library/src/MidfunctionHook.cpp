@@ -413,7 +413,7 @@ namespace hookftw
 		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, stubLength + controlFlowStubLength + relocatedBytes.size()  + jmpStubLength);
 
 		// make page of original code writeable
-		VirtualProtect(sourceAddress, hookLength, PAGE_READWRITE, &pageProtection);
+		VirtualProtect(sourceAddress, hookLength, PAGE_EXECUTE_READWRITE, &pageProtection);
 
 		// write jump from original code to trampoline
 		sourceAddress[0] = 0xE9; //JMP
@@ -500,20 +500,20 @@ namespace hookftw
 	void MidfunctionHook::Unhook()
 	{
 		// make page writeable
-		DWORD dwback;
-		VirtualProtect(sourceAddress_, hookLength_, PAGE_READWRITE, &dwback);
+		DWORD oldProtection;
+		VirtualProtect(sourceAddress_, hookLength_, PAGE_EXECUTE_READWRITE, &oldProtection);
 
 		// copy back original bytes
 		memcpy(sourceAddress_, originalBytes_, hookLength_);
 
 		// restore page protection
-		VirtualProtect(sourceAddress_, hookLength_, dwback, &dwback);
+		VirtualProtect(sourceAddress_, hookLength_, oldProtection, &oldProtection);
 
 		// clean up allocated memory
 		delete[] originalBytes_;
 
-		// clean up memory. This is why we can't unhook from inside the hooked function.
-		delete[] trampoline_;
+		// free trampolin memory page
+		VirtualFree(trampoline_, 0, MEM_RELEASE);
 	}
 
 	void MidfunctionHook::ChangeReturn(int64_t returnValue)
