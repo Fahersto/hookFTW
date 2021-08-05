@@ -20,7 +20,7 @@ git clone --recursive https://git.fslab.de/fstotz2s/hookftw.git
 	- Link Zydis.lib
 	
 ## Documentation
-work in progress
+HookFTW uses doxygen to generate its documentation. The Doxyfile is provided in this repository. A prebuild version can be found here: https://hookftw.schwubbeli.de/
 
 ## Usage example
 
