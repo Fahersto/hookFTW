@@ -24,6 +24,7 @@ namespace hookftw
 		int hookLength_;
 
 	public:
+		Detour();
 		int8_t* Hook(int8_t* sourceAddress, int8_t* targetAddress);
 		void Unhook();
 	};

@@ -75,12 +75,15 @@ namespace hookftw
 	}
 #endif
 
+	/**
+	 * Default constructor.
+	 */
 	VEHHook::VEHHook()
 	{
 	}
 
 	/**
-	 * Creates a VEH hook.
+	 * \brief Creates a VEH hook.
 	 *
 	 * @param originalFunction function to apply the hook to
 	 * @param hookedFunction function to call instead of theoriginal
@@ -115,7 +118,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Unhooks a previously hooked function by removing the vectored exception handler.
+	 * \brief Unhooks a previously hooked function by removing the vectored exception handler.
 	 */
 	void VEHHook::Unhook()
 	{

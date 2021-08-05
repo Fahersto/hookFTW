@@ -5,7 +5,7 @@
 namespace hookftw
 {
 	/**
-	 * \brief Creates and manages hooks on the virtual function table of an object.
+	 * \brief Creates and manages hooks on the virtual function tables.
 	 *
 	 * While this hooking method requires deeper knowledge of the target function its main benefit is that only .data is written to hook. Therefore checksums of the .code section of the target program don't break.
 	 * Also there is no requirement to allocate additional memory pages (VirtualAlloc) or change page protections (VirtualProtect).

@@ -256,6 +256,8 @@ namespace hookftw
 	}
 
 	/**
+	 * \brief Relocates assembler instructions and preserves their original semantic.
+	 * 
 	 * Creates a vector containing relocated instructions. These instructions are not yet written to the targetAddress.
 	 * We need need to know the targetAddress to relocate rip-relative instructions.
 	 * We do generate a vector<int8_t> of relocated instructions instead of writing them directly to the target address
@@ -431,8 +433,9 @@ namespace hookftw
 	}
 
 	/**
-	 * Calculates the lowest and highest rip-relative memory access. These have to be taken into consideration when creating the trampoline
-	 * as we can only relocate rip-relative intructions if they can access their original target with "relocated rip" + rel32
+	 * \brief  Calculates the lowest and highest rip-relative memory access. 
+	 *
+	 * These accesses have to be taken into consideration when creating the trampoline as we can only relocate rip-relative intructions if they can access their original target with "relocated rip" + rel32
 	 *
 	 * @param sourceAddress start address of instructions to be examined
 	 * @param length minimum amount of bytes to examine
@@ -484,6 +487,49 @@ namespace hookftw
 		*lowestAddress = tmpLowestAddress;
 		*highestAddress = tmpHighestAddress;
 		return true;
+	}
+
+	/**
+	 * \brief Disassembles intructions and prints them
+	 *
+	 * @param address Address to start disassembling
+	 * @param byteCount amount of bytes to disassemble
+	 */
+	void Decoder::PrintInstructions(int8_t* address, size_t byteCount)
+	{
+		ZyanU8* data = (ZyanU8*)address;
+
+		// initialize decoder context
+		ZydisDecoder decoder;
+
+#ifdef _WIN64
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
+#elif _WIN32
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_ADDRESS_WIDTH_32);
+#else
+		printf("[Error] - Disassembler - Unsupported architecture\n");
+#endif
+		// loop over the instructions in our buffer.
+		// the runtime-address (instruction pointer) is chosen arbitrary here in order to better visualize relative addressing
+		ZyanU64 runtime_address = (ZyanU64)address;
+		ZyanUSize offset = 0;
+		ZydisDecodedInstruction instruction;
+
+		while (offset < byteCount)
+		{
+			ZydisDecoderDecodeBuffer(&decoder, data + offset, byteCount - offset, &instruction);
+
+			ZydisFormatter formatter;
+			ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+
+			char buffer[256];
+			printf("[%llx]", runtime_address);
+			ZydisFormatterFormatInstruction(&formatter, &instruction, buffer, sizeof(buffer), runtime_address);
+			printf("%s\n", buffer);
+
+			offset += instruction.length;
+			runtime_address += instruction.length;
+		}
 	}
 
 }

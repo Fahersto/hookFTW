@@ -8,7 +8,7 @@ namespace hookftw
 	/**
 	 * \brief Creates and manages VEH hooks.
 	 *
-	 * Only supports hooking at the start of a function. It would be possible to use it for midfunction hook aswell.. 
+	 * The current implementation supports hooking at the start of a function.
 	 *
 	 * \warning VEH Hooking is not thread safe
 	 */

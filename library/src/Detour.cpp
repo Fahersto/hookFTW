@@ -8,9 +8,18 @@
 
 namespace hookftw
 {
+	/**
+	 * \brief Default constructor.
+	 */
+	Detour::Detour()
+		: originalBytes_(nullptr), sourceAddress_(nullptr), trampoline_(nullptr), hookLength_(0)
+	{
+
+	}
+
 #ifdef _WIN64
 	/**
-	 * Creates a detour hook.
+	 * \brief Creates a detour hook.
 	 *
 	 * @param sourceAddress Address to apply the hook to
 	 * @param targetAddress Function to be executed when hook is called
@@ -109,7 +118,7 @@ namespace hookftw
 
 #else
 	/**
-	 * Creates a detour hook.
+	 * \brief Creates a detour hook.
 	 *
 	 * @param sourceAddress Address to apply the hook to
 	 * @param targetAddress Function to be executed when hook is called
@@ -191,7 +200,9 @@ namespace hookftw
 #endif
 
 	/**
-	 * Unhooks a detour hook.
+	 * \brief Unhooks a detour hook.
+	 * 
+	 *  \warning It is the users responsiblity to ensure that code within the trampoline is not going to be executed after unhooking.
 	 */
 	void Detour::Unhook()
 	{

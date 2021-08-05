@@ -7,6 +7,9 @@
 
 namespace hookftw
 {
+	/**
+	 *  \brief Default constructor.
+	 */
 	Trampoline::Trampoline()
 	{
 	}
@@ -178,7 +181,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Attempts to allocate a trampoline_ within +-2gb range with respect to rip-relative memory accesses.
+	 * \brief Attempts to allocate a trampoline_ within +-2gb range with respect to rip-relative memory accesses.
 	 */
 	int8_t* Trampoline::AllocateTrampolineWithinBounds(int8_t* sourceAddress, int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress, bool* restrictedRelocation)
 	{

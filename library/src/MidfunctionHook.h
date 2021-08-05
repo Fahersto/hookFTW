@@ -20,12 +20,10 @@ namespace hookftw
 
 	struct context;
 	/**
-	 * \brief Creates and manages hooks.
+	 * \brief Creates and manages hooks. Supports hooking within a function.
 	 *
 	 * Hooking at the start of a function enables additional functionality such as
 	 * calling the original function or skipping the call of the original function that invoked the hook.
-	 *
-	 * \warning The caller is responsible to ensure that the start of a function is hooked. Otherwhise context::CallOriginal() and context::SkipCall() behavior is undefined.
 	 */
 	class MidfunctionHook
 	{
@@ -85,6 +83,7 @@ namespace hookftw
 	  * \brief context for 64bit to be used in the hook callback
 	  *
 	  * \note Inside the hook any register can be read/written by using this context.
+	  * 
 	  * \warning Values of registers are at the time of hooking. The only expection to this is RSP which can be calculated by \GetRspAtHookAddress.
 	  */
 	struct context
@@ -129,7 +128,7 @@ namespace hookftw
 		int64_t rflags;
 
 		/**
-		 * Prints the values of all registers
+		 * \brief Prints the values of all registers
 		 */
 		void PrintRegister()
 		{
@@ -138,7 +137,8 @@ namespace hookftw
 		}
 
 		/**
-		 * Changes the address to which is returned to after the hook (usually the hooked function).
+		 * \brief Changes the address to which is returned to after the hook (usually the hooked function).
+		 * 
 		 * \warning Changing the control flow of a function is very likely to produce crashes if not done with caution.
 		 */
 		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
@@ -147,8 +147,9 @@ namespace hookftw
 		}
 
 		/**
-		 * Skips the call of the hooked function but executing a RET.
-		 * \warning This usually only makes sense if the function is hooked directly at its beginning. Otherwhise behavior is undefined.
+		 * \brief Skips the call of the hooked function but executing a RET.
+		 * 
+		 \warning Only to be called if the beginning of a function was hooked. Otherwhise results in undefined behavior.
 		 */
 		void SkipOriginalFunction()
 		{
@@ -156,7 +157,7 @@ namespace hookftw
 		}
 
 		/**
-		 * Calls the original (unhooked) version of the function. Allows to call the hooked function without recursivly calling the hook again.
+		 * \brief Calls the original (unhooked) version of the function. Allows to call the hooked function without recursivly calling the hook again.
 		 *
 		 * @return result of the hooked function when invoked with the specified parameters.
 		 */
@@ -197,6 +198,7 @@ namespace hookftw
 	  * \brief context for 32bit to be used in the hook callback
 	  *
 	  * \note Inside the hook any register can be read/written by using this context.
+	  * 
 	  * \warning Values of registers are at the time of hooking. The only expection to this is ESP which can be calculated by \GetEspAtHookAddress.
 	  */
 	struct context
@@ -225,7 +227,7 @@ namespace hookftw
 		int32_t eflags;
 
 		/**
-		 * Prints the values of all registers
+		 * \brief Prints the values of all registers
 		 */
 		void PrintRegister()
 		{
@@ -234,7 +236,8 @@ namespace hookftw
 		}
 
 		/**
-		* Changes the address to which is returned to after the hook (usually the hooked function).
+		* \brief Changes the address to which is returned to after the hook (usually the hooked function).
+		* 
 		* \warning Changing the control flow of a function is very likely to produce crashes if not done with caution.
 		*/
 		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
@@ -243,7 +246,8 @@ namespace hookftw
 		}
 
 		/**
-		* Skips the call of the hooked function but executing a RET.
+		* \brief Skips the call of the hooked function but executing a RET.
+		* 
 		* \warning This usually only makes sense if the function is hooked directly at its beginning. Otherwhise behavior is undefined.
 		*/
 		void SkipOriginalFunction()
@@ -252,9 +256,11 @@ namespace hookftw
 		}
 
 		/**
-		 * Calls the original (unhooked) version of the function. Allows to call the hooked function without recursivly calling the hook again.
+		 * \brief Calls the original (unhooked) version of the function. Allows to call the hooked function without recursivly calling the hook again.
 		 *
 		 * @return result of the hooked function when invoked with the specified parameters.
+		 * 
+		 * \warning Only to be called if the beginning of a function was hooked. Otherwhise results in undefined behavior.
 		*/
 		template<class RET, class...PARAMS>
 		RET CallOriginal(CallingConvention cc = CallingConvention::cdecl_call, PARAMS... parameters)

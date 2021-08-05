@@ -8,7 +8,7 @@ namespace hookftw
 	FILE* Logger::logfile_;
 
 	/**
-	 * Writes a messages to the log.
+	 * \brief Writes a messages to the log.
 	 *
 	 * @param format The format used for logging (printf syntax).
 	 * @param ... Data to be logged
@@ -28,7 +28,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Creates a console window to use for debug messages.
+	 * \brief Creates a console window to use for debug messages.
 	 *
 	 * @param title Title of the console window
 	 * @param enableFileLogging decide if log should be written to file, <code>true</code> by default.
@@ -50,8 +50,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Closes the console window used for debugging.
-	 * 
+	 * \brief Closes the console window used for debugging.
 	 */
 	void Logger::CloseDebuggingConsole()
 	{

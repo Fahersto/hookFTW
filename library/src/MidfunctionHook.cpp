@@ -14,7 +14,7 @@ namespace hookftw
 #if _WIN64
 
 	/**
-	 * Populates the trampoline stubs and writes and hooks the target function by placing a JMP
+	 * \brief Populates the trampoline stubs and writes and hooks the target function by placing a JMP
 	 *
 	 * @param sourceAddress Address to apply the hook to
 	 * @param hookLength amount of bytes to overwrite with the hook
@@ -184,7 +184,7 @@ namespace hookftw
 		int8_t controllFlowStub[controlFlowStubLength] = {
 			0x48, 0xA3, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs ds:0x1122334455667788,rax
 			0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs rax,0x1122334455667788
-			0xFF, 0x30,													//push   QWORD PTR [rax]
+			0xFF, 0x30,													//push QWORD PTR [rax]
 			0x48, 0xA1, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs rax, [0x1122334455667788]  addr. of local saved rax
 			0xC3														//ret
 		};
@@ -264,7 +264,7 @@ namespace hookftw
 	}
 #elif _WIN32
 	/**
-	 * Populates the trampoline stubs and writes and hooks the target function by placing a JMP
+	 * \brief Populates the trampoline stubs and writes and hooks the target function by placing a JMP
 	 *
 	 * @param sourceAddress Address to apply the hook to
 	 * @param hookLength amount of bytes to overwrite with the hook
@@ -429,6 +429,12 @@ namespace hookftw
 		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
 #endif
+	/**
+	 * \brief Default constructor.
+	 * 
+	 * \warning The MidfunctionHook object holds state required by an active hook. 
+	 *  If a hook exceeds the lifetime of its associated MidfunctionHook object, it will crash.
+	 */
 	MidfunctionHook::MidfunctionHook()
 		: savedRax_(0)
 	{
@@ -442,7 +448,7 @@ namespace hookftw
 	}
 
 	/**
-	 * Creates a midfunction hook.
+	 * \brief Creates a midfunction hook.
 	 *
 	 * @param sourceAddress Address to apply the hook to
 	 * @param proxy Function to be executed when hook is called
@@ -485,7 +491,7 @@ namespace hookftw
 
 
 	/**
-	 * Get a version of the hooked function that can be called without recursively running in the hook again
+	 * \brief Get a version of the hooked function that can be called without recursively running in the hook again
 	 *
 	 * @return Address of function to call
 	 */
@@ -495,7 +501,9 @@ namespace hookftw
 	}
 
 	/**
-	 * Restores the original function by copying back the original bytes of the hooked function that where overwritten by placing the hook.
+	 * \brief Restores the original function by copying back the original bytes of the hooked function that where overwritten by placing the hook.
+	 *
+	 *  \warning It is the users responsiblity to ensure that code within the trampoline is not going to be executed after unhooking.
 	 */
 	void MidfunctionHook::Unhook()
 	{
@@ -516,13 +524,20 @@ namespace hookftw
 		VirtualFree(trampoline_, 0, MEM_RELEASE);
 	}
 
+	/**
+	 * \brief Changes the address the code will return to after executing the hook.
+	 */
 	void MidfunctionHook::ChangeReturn(int64_t returnValue)
 	{
 		returnAddressFromTrampoline_ = returnValue;
 	}
 
 	/**
-	 * Skips the invocation of the original call of the hooked function by executing a RET instruction to return the the hooked functions caller.
+	 * \brief Skips the invocation of the original call of the hooked function. 
+	 * 
+	 * This is done by executing a RET instruction to return the the hooked functions caller.
+	 * 
+	 *  \warning Only to be called if the beginning of a function was hooked. Otherwhise results in undefined behavior.
 	 */
 	void MidfunctionHook::SkipOriginalFunction()
 	{

@@ -18,7 +18,7 @@ namespace hookftw
 	 * \brief Hooks a function inside the virtual function table.
 	 *
 	 * @param index index of the function to hook inside the virtual function table (starting at 0)
-	 * @hookedFunction proxy function
+	 * @param hookedFunction proxy function
 	 */
 	int8_t* VFTHook::Hook(int index, int8_t* hookedFunction)
 	{
