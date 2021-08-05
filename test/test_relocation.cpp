@@ -1,8 +1,13 @@
 #include <Windows.h>
 #include <cstdint>
 
-#include <Disassembler.h>
 #include <Decoder.h>
+
+
+/**
+*	This program tests relocation of predefined instructions.
+*	THe results of the relocation have to be inspected manually.
+*/
 
 #ifdef _WIN64
 const int callsLength = 40;
@@ -55,21 +60,20 @@ int8_t relocatedBytes[relocatedBytesLength];
 
 void TestRelocation(int8_t* instructions, int instructionsLength)
 {
-	hookftw::Disassembler disassembler;
+	hookftw::Decoder decoder;
 
 	// print original instructions
 	printf("Original instructions: \n");
-	disassembler.PrintInstructions(instructions, instructionsLength);
+	decoder.PrintInstructions(instructions, instructionsLength);
 
 	// relocate instructions
-	hookftw::Decoder decoder;
 	auto relocatedInstructions = decoder.Relocate(instructions, instructionsLength, relocatedBytes);
 
 	memcpy(relocatedBytes, relocatedInstructions.data(), relocatedInstructions.size());
 
 	// print relocation result
 	printf("Relocated instructions: \n");
-	disassembler.PrintInstructions(relocatedBytes, relocatedInstructions.size());
+	decoder.PrintInstructions(relocatedBytes, relocatedInstructions.size());
 
 	memset(relocatedBytes, 0, relocatedBytesLength);
 }
@@ -138,19 +142,18 @@ int8_t relocatedResult[relocatedResultLength];
 
 void TestRelocation(int8_t* instructions, int instructionsLength)
 {
-	hookftw::Disassembler disassembler;
+	hookftw::Decoder decoder;
 
 	// print original instructions
-	disassembler.PrintInstructions(instructions, instructionsLength);
+	decoder.PrintInstructions(instructions, instructionsLength);
 
 	// relocate instructions
-	hookftw::Decoder decoder;
 	auto relocatedInstructions = decoder.Relocate(instructions, instructionsLength, relocatedResult);
 
 	memcpy(relocatedResult, relocatedInstructions.data(), relocatedInstructions.size());
 
 	// print relocation result
-	disassembler.PrintInstructions(relocatedResult, relocatedInstructions.size());
+	decoder.PrintInstructions(relocatedResult, relocatedInstructions.size());
 
 	memset(relocatedResult, 0, relocatedResultLength);
 }
