@@ -122,6 +122,8 @@ int main()
 			animal->MakeSound();
 		}
 		
+		printf("aslr: %p\n", (BYTE*)GetModuleHandle(NULL));
+
 		Sleep(1000);
 	}
 }
