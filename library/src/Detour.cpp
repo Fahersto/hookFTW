@@ -41,13 +41,15 @@ namespace hookftw
 		}
 
 		Decoder decoder;
-		if (restrictedRelocation)
+		int64_t addressDelta = (int64_t)targetAddress - (int64_t)sourceAddress;
+
+		if (addressDelta & 0xffffffff00000000)
 		{
-			this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 5);;
+			this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 14);
 		}
 		else
 		{
-			this->hookLength_ =  decoder.GetLengthOfInstructions(sourceAddress, 14);
+			this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 5);
 		}
 
 		// 5 bytes are required to place detour
@@ -78,27 +80,33 @@ namespace hookftw
 		const int stubJumpBackLength = 14;
 		addressAfterRelocatedBytes[0] = 0xFF;														//opcodes = JMP [rip+0]
 		addressAfterRelocatedBytes[1] = 0x25;														//opcodes = JMP [rip+0]
-		*(uint32_t*)(&addressAfterRelocatedBytes[2]) = 0;											//relative distance from RIP (+0) 
-		*(uint64_t*)(&addressAfterRelocatedBytes[2 + 4]) = (uint64_t)(sourceAddress + hookLength_);	//destination to jump to
+		*(int32_t*)(&addressAfterRelocatedBytes[2]) = 0;											//relative distance from RIP (+0) 
+		*(int64_t*)(&addressAfterRelocatedBytes[2 + 4]) = (int64_t)(sourceAddress + hookLength_);	//destination to jump to
 
-		int jmpToTrampolineLength = 5;
-		if (restrictedRelocation)
+		int jmpToHookedFunctionLength = 5;
+
+		// check if a jmp rel32 can reach
+		if (addressDelta & 0xffffffff00000000)
 		{
-			jmpToTrampolineLength = 14;
+			// need absolute 14 byte jmp
+			jmpToHookedFunctionLength = 14;
 			// write JMP from original code to hook function
 			sourceAddress[0] = 0xFF;																//opcodes = JMP [rip+0]
 			sourceAddress[1] = 0x25;																//opcodes = JMP [rip+0]
-			*(uint32_t*)(&sourceAddress[2]) = 0;													//relative distance from RIP (+0) 
-			*(uint64_t*)(&sourceAddress[2 + 4]) = (uint64_t)(targetAddress);						//destination to jump to
+			*(int32_t*)(&sourceAddress[2]) = 0;													//relative distance from RIP (+0) 
+			*(int64_t*)(&sourceAddress[2 + 4]) = (int64_t)(targetAddress);						//destination to jump to
 		}
 		else
 		{
+			// jmp rel32 is enough
+			int64_t target1 = (int64_t)targetAddress - (int64_t)sourceAddress;
+			int32_t target2 = (int32_t)((int64_t)targetAddress - (int64_t)sourceAddress);
 			sourceAddress[0] = 0xE9;																//JMP rel32
-			*(uint32_t*)(sourceAddress + 1) = (uint32_t)(targetAddress - sourceAddress) - 5;
+			*(int32_t*)(&sourceAddress[1]) = (int32_t)((int64_t)targetAddress - (int64_t)sourceAddress - 5);
 		}
 
 		// NOP left over bytes
-		for (int i = jmpToTrampolineLength; i < hookLength_; i++)
+		for (int i = jmpToHookedFunctionLength; i < hookLength_; i++)
 		{
 			sourceAddress[i] = 0x90;
 		}
@@ -111,7 +119,7 @@ namespace hookftw
 
 		// flush instruction cache for new executable region to ensure cache coherency
 		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
-	
+
 		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
 	}
@@ -192,7 +200,7 @@ namespace hookftw
 
 		// flush instruction cache for new executable region to ensure cache coherency
 		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
-	
+
 		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
 	}
@@ -201,7 +209,7 @@ namespace hookftw
 
 	/**
 	 * \brief Unhooks a detour hook.
-	 * 
+	 *
 	 *  \warning It is the users responsiblity to ensure that code within the trampoline is not going to be executed after unhooking.
 	 */
 	void Detour::Unhook()
