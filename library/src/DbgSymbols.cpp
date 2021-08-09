@@ -51,7 +51,6 @@ namespace hookftw
 	 *
 	 * @return address of the symbols or nullptr if the symbol name could not be found.
 	 */
-    //https://docs.microsoft.com/en-us/windows/win32/debug/using-dbghelp
     int8_t* DbgSymbols::GetAddressBySymbolName(const char* name)
     {
         if (!symbolsLoaded_ || !baseAddress_)
@@ -59,7 +58,8 @@ namespace hookftw
             printf("Symbols are not loaded\n");
             return nullptr;
         }
-    	
+
+        // based on https://docs.microsoft.com/en-us/windows/win32/debug/using-dbghelp
         TCHAR szSymbolName[MAX_SYM_NAME];
         ULONG64 buffer[(sizeof(SYMBOL_INFO) +
             MAX_SYM_NAME * sizeof(TCHAR) +
@@ -70,7 +70,6 @@ namespace hookftw
         _tcscpy_s(szSymbolName, MAX_SYM_NAME, TEXT(name));
         pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         pSymbol->MaxNameLen = MAX_SYM_NAME;
-
         pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         pSymbol->MaxNameLen = MAX_SYM_NAME;
     	
@@ -92,11 +91,9 @@ namespace hookftw
         UNREFERENCED_PARAMETER(UserContext);
         char buffer[5000];
         sprintf(buffer, "%llx %4u %s\n", pSymInfo->Address, SymbolSize, pSymInfo->Name);
-        // printf("%llx %4u %s\n", pSymInfo->Address, SymbolSize, pSymInfo->Name);
         Logger::Log(buffer);
         return TRUE;
     }
-
 
     /**
      * \brief Enumerates all symbols in the binary and writes them to a log file.
