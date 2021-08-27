@@ -100,3 +100,20 @@ hookftw::VFTHook vftHook(vftable);
 // in this example we hook the fourth function in the vftable
 vftHook.Hook(3, (int8_t*)hookedCalculate)
 ```
+
+---
+
+### Import Address Table Hook
+```C++
+using orignalMessageBox = BOOL(WINAPI*)(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType);
+orignalMessageBox oMessage;
+
+int WINAPI hkMessageBoxA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
+{
+	printf("hkMessageBoxA!\n");
+	return oMessage(hWnd, lpText, lpCaption, uType);
+}
+
+hookftw::IATHook iatHook;
+oMessage = (orignalMessageBox)iatHook.Hook("User32.dll", "MessageBoxA", (int8_t*)hkMessageBoxA);
+```
