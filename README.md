@@ -5,14 +5,14 @@ A hooking library for Windows (32/64 Bit).
 ## Setting up using CMAKE
 1. Clone including submodules:
 ```
-git clone --recursive git@git.fslab.de:fstotz2s/hookftw.git
+git clone --recursive https://github.com/Fahersto/hookFTW.git
 ```
 2. Build the library using CMAKE.
 
 ## Setting up manually
 1. Clone including submodules:
 ```
-git clone --recursive https://git.fslab.de/fstotz2s/hookftw.git
+git clone --recursive https://github.com/Fahersto/hookFTW.git
 ```
 2. Build hookFTW
 	- Include headers: hookftw/library/src
