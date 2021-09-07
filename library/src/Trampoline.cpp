@@ -37,11 +37,11 @@ namespace hookftw
 		// attempt using 5 bytes 
 		if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fiveBytesWithoutCuttingInstructions, &lowestRelativeAddress, &hightestRelativeAddress))
 		{
-			printf("[Error] - MidfunctionHook - Could not calculate bounds of relative instructions replaced by hook!\n");
+			printf("[Error] - Trampoline - Could not calculate bounds of relative instructions replaced by hook!\n");
 			return nullptr;;
 		}
 
-		printf("[Info] - MidfunctionHook - Bounds of relative addresses accessed [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
+		printf("[Info] - Trampoline - Bounds of relative addresses accessed [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
 
 		// check if there was rip-relative memory access
 		if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
@@ -52,7 +52,7 @@ namespace hookftw
 
 			if (!trampoline)
 			{
-				printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
+				printf("[Error] - Trampoline - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 				return nullptr;
 			}
 
@@ -63,7 +63,7 @@ namespace hookftw
 				// since we failed to allocate withing +-2GB range we now need to check fourteenBytesWithoutCuttingInstructions for rip-relative instructions
 				if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fourteenBytesWithoutCuttingInstructions, &lowestRelativeAddress, &hightestRelativeAddress))
 				{
-					printf("[Error] - MidfunctionHook - Could not calculate bounds of relative instructions replaced by hook!\n");
+					printf("[Error] - Trampoline - Could not calculate bounds of relative instructions replaced by hook!\n");
 					return nullptr;
 				}
 
@@ -71,7 +71,7 @@ namespace hookftw
 				// if we have rip-relativ memory access here, hooking failed
 				if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
 				{
-					printf("[Error] - MidfunctionHook - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
+					printf("[Error] - Trampoline - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
 					return nullptr;
 				}
 			}
@@ -83,7 +83,7 @@ namespace hookftw
 
 			if (!trampoline)
 			{
-				printf("[Error] - MidfunctionHook - Failed to allocate trampoline within bounds [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
+				printf("[Error] - Trampoline - Failed to allocate trampoline within bounds [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
 				return nullptr;
 			}
 
@@ -91,7 +91,7 @@ namespace hookftw
 			// if we failed to allocate the trampoline withing +-2GB range it is not supported
 			if (*restrictedRelocation)
 			{
-				printf("[Error] - MidfunctionHook - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
+				printf("[Error] - Trampoline - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
 				return nullptr;
 			}
 		}
@@ -99,7 +99,7 @@ namespace hookftw
 		trampoline = this->AllocateTrampoline(sourceAddress, restrictedRelocation);
 		if (!trampoline)
 		{
-			printf("[Error] - MidfunctionHook - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
+			printf("[Error] - Trampoline - Failed to allocate trampoline for hookAddress %p\n", sourceAddress);
 			return nullptr;
 		}
 #endif
@@ -130,7 +130,7 @@ namespace hookftw
 			lowestAddressReachableByFiveBytesJump = 0;
 		}
 
-		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range of %p\n", sourceAddress);
+		printf("[Info] - Trampoline - Attempting to allocate trampoline within +-2GB range of %p\n", sourceAddress);
 		int8_t* trampoline = nullptr;
 		int64_t targetAddress = 0;
 		while (!trampoline)
@@ -161,7 +161,7 @@ namespace hookftw
 				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
 
-				printf("[Warning] - MidfunctionHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
+				printf("[Warning] - Trampoline - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
 
 				return trampoline;
 
@@ -175,7 +175,7 @@ namespace hookftw
 				return nullptr;
 			}
 		}
-		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %lld attempts)\n", trampoline, allocationAttempts);
+		printf("[Info] - Trampoline - Allocated trampoline at %p (using %lld attempts)\n", trampoline, allocationAttempts);
 		*restrictedRelocation = false;
 		return trampoline;
 	}
@@ -218,7 +218,7 @@ namespace hookftw
 			initialTargetAddress = highestAddressReachableByFiveBytesJump;
 		}
 
-		printf("[Info] - MidfunctionHook - Attempting to allocate trampoline within +-2GB range of [%llx, %llx] with a trampoline maximum size of %d\n", lowestRipRelativeMemoryAccess, highestRipRelativeMemoryAddress, trampolineLengthUpperBound);
+		printf("[Info] - Trampoline - Attempting to allocate trampoline within +-2GB range of [%llx, %llx] with a trampoline maximum size of %d\n", lowestRipRelativeMemoryAccess, highestRipRelativeMemoryAddress, trampolineLengthUpperBound);
 		int8_t* trampoline = nullptr;
 		while (!trampoline)
 		{
@@ -249,7 +249,7 @@ namespace hookftw
 				// we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
 
-				printf("[Warning] - MidfunctionHook - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
+				printf("[Warning] - Trampoline - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
 				return trampoline;
 
 #elif _WIN32
@@ -262,7 +262,7 @@ namespace hookftw
 				return false;
 			}
 		}
-		printf("[Info] - MidfunctionHook - Allocated trampoline at %p (using %lld attempts)\n", trampoline, allocationAttempts);
+		printf("[Info] - Trampoline - Allocated trampoline at %p (using %lld attempts)\n", trampoline, allocationAttempts);
 		*restrictedRelocation = false;
 		return trampoline;
 	}
