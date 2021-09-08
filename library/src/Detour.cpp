@@ -61,7 +61,7 @@ namespace hookftw
 
 		// make page of detour address writeable
 		DWORD pageProtection;
-		VirtualProtect(sourceAddress, hookLength_, PAGE_READWRITE, &pageProtection);
+		VirtualProtect(sourceAddress, hookLength_, PAGE_EXECUTE_READWRITE, &pageProtection);
 
 		// relocate to be overwritten instructions to trampoline
 		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, this->hookLength_, trampoline_, restrictedRelocation);
@@ -153,7 +153,7 @@ namespace hookftw
 
 		// make page of detour address writeable
 		DWORD pageProtection;
-		VirtualProtect(sourceAddress, hookLength_, PAGE_READWRITE, &pageProtection);
+		VirtualProtect(sourceAddress, hookLength_, PAGE_EXECUTE_READWRITE, &pageProtection);
 
 		// allocate trampoline
 		Trampoline trampoline;
