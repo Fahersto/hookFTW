@@ -110,8 +110,11 @@ namespace hookftw
 
 		VEHHook::addressToProxyfunction_.emplace(std::make_pair<>(originalFunction, hookedFunction));
 
-		// register the Custom Exception Handler
-		handleVEH_ = AddVectoredExceptionHandler(true, CustomExceptionHandler);
+		if (!handleVEH_)
+		{
+			// register the Custom Exception Handler
+			handleVEH_ = AddVectoredExceptionHandler(true, CustomExceptionHandler);
+		}
 
 		// toggle PAGE_GUARD flag on the page
 		VirtualProtect(originalFunction, 1, PAGE_EXECUTE_READ | PAGE_GUARD, &originalPageProtection_);
