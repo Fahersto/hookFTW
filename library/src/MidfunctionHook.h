@@ -36,7 +36,7 @@ namespace hookftw
 		// contrains overwritten instructions
 		int8_t* trampoline_ = nullptr;
 
-		// contains the address after the trampoline_ stub. starts with the rellocated origin instruction.
+		// contains the address after the trampoline_ stub. starts with the relocated origin instruction.
 		int8_t* addressToCallFunctionWithoutHook_ = nullptr;
 
 		// contains the address to which the trampoline_ returns. This can be used to skip the original call for example.
@@ -83,7 +83,7 @@ namespace hookftw
 	  * \brief context for 64bit to be used in the hook callback
 	  *
 	  * \note Inside the hook any register can be read/written by using this context.
-	  * 
+	  *
 	  * \warning Values of registers are at the time of hooking. The only expection to this is RSP which can be calculated by \GetRspAtHookAddress.
 	  */
 	struct context
@@ -138,7 +138,7 @@ namespace hookftw
 
 		/**
 		 * \brief Changes the address to which is returned to after the hook (usually the hooked function).
-		 * 
+		 *
 		 * \warning Changing the control flow of a function is very likely to produce crashes if not done with caution.
 		 */
 		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
@@ -148,7 +148,7 @@ namespace hookftw
 
 		/**
 		 * \brief Skips the call of the hooked function but executing a RET.
-		 * 
+		 *
 		 \warning Only to be called if the beginning of a function was hooked. Otherwhise results in undefined behavior.
 		 */
 		void SkipOriginalFunction()
@@ -198,7 +198,7 @@ namespace hookftw
 	  * \brief context for 32bit to be used in the hook callback
 	  *
 	  * \note Inside the hook any register can be read/written by using this context.
-	  * 
+	  *
 	  * \warning Values of registers are at the time of hooking. The only expection to this is ESP which can be calculated by \GetEspAtHookAddress.
 	  */
 	struct context
@@ -237,7 +237,7 @@ namespace hookftw
 
 		/**
 		* \brief Changes the address to which is returned to after the hook (usually the hooked function).
-		* 
+		*
 		* \warning Changing the control flow of a function is very likely to produce crashes if not done with caution.
 		*/
 		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
@@ -247,7 +247,7 @@ namespace hookftw
 
 		/**
 		* \brief Skips the call of the hooked function but executing a RET.
-		* 
+		*
 		* \warning This usually only makes sense if the function is hooked directly at its beginning. Otherwhise behavior is undefined.
 		*/
 		void SkipOriginalFunction()
@@ -259,7 +259,7 @@ namespace hookftw
 		 * \brief Calls the original (unhooked) version of the function. Allows to call the hooked function without recursivly calling the hook again.
 		 *
 		 * @return result of the hooked function when invoked with the specified parameters.
-		 * 
+		 *
 		 * \warning Only to be called if the beginning of a function was hooked. Otherwhise results in undefined behavior.
 		*/
 		template<class RET, class...PARAMS>
@@ -275,21 +275,21 @@ namespace hookftw
 
 			switch (cc)
 			{
-				case CallingConvention::default_call:
-					return ((defaultFunc)originalFunction)(parameters...);
-					break;
-				case CallingConvention::cdecl_call:
-					return ((cdeclFunc)originalFunction)(parameters...);
-					break;
-				case CallingConvention::stdcall_call:
-					return ((stdcallFunc)originalFunction)(parameters...);
-					break;
-				case CallingConvention::fastcall_call:
-					return ((fastcallFunc)originalFunction)(parameters...);
-					break;
-				case CallingConvention::thiscall_call:
-					return ((thiscallFunc)originalFunction)(parameters...);
-					break;
+			case CallingConvention::default_call:
+				return ((defaultFunc)originalFunction)(parameters...);
+				break;
+			case CallingConvention::cdecl_call:
+				return ((cdeclFunc)originalFunction)(parameters...);
+				break;
+			case CallingConvention::stdcall_call:
+				return ((stdcallFunc)originalFunction)(parameters...);
+				break;
+			case CallingConvention::fastcall_call:
+				return ((fastcallFunc)originalFunction)(parameters...);
+				break;
+			case CallingConvention::thiscall_call:
+				return ((thiscallFunc)originalFunction)(parameters...);
+				break;
 			}
 		}
 
