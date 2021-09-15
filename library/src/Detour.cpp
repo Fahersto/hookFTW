@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cassert>
+#include <climits>
 
 namespace hookftw
 {
@@ -43,7 +44,7 @@ namespace hookftw
 		Decoder decoder;
 		int64_t addressDelta = (int64_t)targetAddress - (int64_t)sourceAddress;
 
-		if (addressDelta & 0xffffffff00000000)
+		if (addressDelta > INT32_MAX || addressDelta < INT32_MIN)
 		{
 			this->hookLength_ = decoder.GetLengthOfInstructions(sourceAddress, 14);
 		}
@@ -86,15 +87,15 @@ namespace hookftw
 		int jmpToHookedFunctionLength = 5;
 
 		// check if a jmp rel32 can reach
-		if (addressDelta & 0xffffffff00000000)
+		if (addressDelta > INT32_MAX || addressDelta < INT32_MIN)
 		{
 			// need absolute 14 byte jmp
 			jmpToHookedFunctionLength = 14;
 			// write JMP from original code to hook function
 			sourceAddress[0] = 0xFF;																//opcodes = JMP [rip+0]
 			sourceAddress[1] = 0x25;																//opcodes = JMP [rip+0]
-			*(int32_t*)(&sourceAddress[2]) = 0;													//relative distance from RIP (+0) 
-			*(int64_t*)(&sourceAddress[2 + 4]) = (int64_t)(targetAddress);						//destination to jump to
+			*(int32_t*)(&sourceAddress[2]) = 0;														//relative distance from RIP (+0) 
+			*(int64_t*)(&sourceAddress[2 + 4]) = (int64_t)(targetAddress);							//destination to jump to
 		}
 		else
 		{
@@ -118,7 +119,7 @@ namespace hookftw
 		VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
 
 		// flush instruction cache for new executable region to ensure cache coherency
-		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
+		//FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
 
 		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
