@@ -88,7 +88,7 @@ namespace hookftw
 	 *	@param instructionAddress original address of the call instruction
 	 *	@param relocatedbytes relocated bytes
 	 */
-	bool RelocateCallInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, std::vector<int8_t>& relocatedbytes)
+	bool RelocateCallInstruction(ZydisDecodedInstruction& instruction, const ZydisDecodedOperand* operand, int8_t* instructionAddress, std::vector<int8_t>& relocatedbytes)
 	{
 		ZyanU64 originalJumpTarget;
 		if (instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM)
@@ -97,7 +97,7 @@ namespace hookftw
 			{
 #ifdef _WIN64
 				// disp32 see ModR/M table (intel manual)
-				ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+				ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
 
 				// we can use rax here as it has not to be preserved in function calls
 				const int relocatedCallInstructionsLength = 12;
@@ -122,7 +122,7 @@ namespace hookftw
 		{
 			// e8 calls.. CALL rel16, CALL rel32,
 			// 9a calls.. CALL ptr16:16, CALL ptr16:32 are not handled (no support for 16 bit architecture)
-			ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+			ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
 
 #ifdef _WIN64
 			const int relocatedCallInstructionsLength = 12;
@@ -157,16 +157,16 @@ namespace hookftw
 	 *	@param instructionAddress original address of the branch instruction
 	 *	@param relocatedbytes relocated bytes
 	 */
-	bool RelocateBranchInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& relocatedbytes)
+	bool RelocateBranchInstruction(ZydisDecodedInstruction& instruction, const ZydisDecodedOperand* operand, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& relocatedbytes)
 	{
 		ZyanU64 originalJumpTarget;
-		ZydisCalcAbsoluteAddress(&instruction, instruction.operands, (ZyanU64)instructionAddress, &originalJumpTarget);
+		ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
 
 		// handle conditional jumps (jcc) by using 2 jmp
 		if (instruction.mnemonic != ZYDIS_MNEMONIC_JMP)
 		{
 			relocatedbytes.insert(relocatedbytes.end(), instructionAddress, instructionAddress + instruction.length);
-			const int elementSizeInBytes = instruction.operands[0].element_size / 8;
+			const int elementSizeInBytes = operand[0].element_size / 8;
 			//suppport jcc rel8, jcc rel16, jcc rel32. JCC always has the offset in its first operand. Fill remmaining bytes with '0'
 			for (int i = 1; i < elementSizeInBytes - 1; i++)
 			{
@@ -330,7 +330,7 @@ namespace hookftw
 		{
 			_zydisDecoder = &decoder;
 #ifdef _WIN64
-			ZyanStatus status = ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
+			ZyanStatus status = ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 #elif _WIN32
 			ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_ADDRESS_WIDTH_32);
 #else
@@ -378,18 +378,20 @@ namespace hookftw
 		{
 			ZydisDecodedInstruction instruction;
 			int8_t* currentAddress = sourceAddress + amountOfBytesrelocated;
-
-			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
+			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
 				printf("[Error] - Decoder - Could not decode instruction\n");
 				return std::vector<int8_t>();
 			}
+
+
 			// the order here matters. We start with more specific relocations. There are for example call instructions that use rip-relative memory accesses
 			if (IsCallInstruction(instruction))
 			{
 				// handle relocation of call instructions
-				if (!RelocateCallInstruction(instruction, currentAddress, relocatedbytes))
+				if (!RelocateCallInstruction(instruction, operands, currentAddress, relocatedbytes))
 				{
 					printf("[Error] - Decoder - Failed to relocate call instruction\n");
 					return std::vector<int8_t>();
@@ -398,7 +400,7 @@ namespace hookftw
 			else if (IsBranchInstruction(instruction))
 			{
 				// handle relocation of branch instructions (jcc, loopcc)
-				if (!RelocateBranchInstruction(instruction, currentAddress, targetAddress + relocatedbytes.size(), relocatedbytes))
+				if (!RelocateBranchInstruction(instruction, operands, currentAddress, targetAddress + relocatedbytes.size(), relocatedbytes))
 				{
 					printf("[Error] - Decoder - Failed to relocate branch instruction\n");
 					return std::vector<int8_t>();
@@ -457,13 +459,14 @@ namespace hookftw
 		{
 			ZydisDecodedInstruction instruction;
 			int8_t* currentAddress = sourceAddress + byteCount;
-
-			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
+			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
 				printf("[Error] - Decoder - Could not decode instruction\n");
 				return 0;
 			}
+
 			byteCount += instruction.length;
 		}
 		return byteCount;
@@ -489,7 +492,8 @@ namespace hookftw
 			ZydisDecodedInstruction instruction;
 			int8_t* currentAddress = startAddress + offset;
 
-			decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
+			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
 				printf("[Error] - Decoder - Could not decode instruction\n");
@@ -551,8 +555,8 @@ namespace hookftw
 		{
 			ZydisDecodedInstruction instruction;
 			int8_t* currentAddress = sourceAddress + byteCount;
-
-			ZyanStatus decodeResult = ZydisDecoderDecodeBuffer((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction);
+			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
+			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
 				printf("[Error] - Decoder - Could not decode instruction\n");
@@ -600,7 +604,7 @@ namespace hookftw
 		ZydisDecoder decoder;
 
 #ifdef _WIN64
-		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 #elif _WIN32
 		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_ADDRESS_WIDTH_32);
 #else
@@ -614,14 +618,20 @@ namespace hookftw
 
 		while (offset < byteCount)
 		{
-			ZydisDecoderDecodeBuffer(&decoder, data + offset, byteCount - offset, &instruction);
+			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
+			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, data + offset, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
+			if (decodeResult != ZYAN_STATUS_SUCCESS)
+			{
+				printf("[Error] - Decoder - Could not decode instruction\n");
+				return;
+			}
 
 			ZydisFormatter formatter;
 			ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 
 			char buffer[256];
 			printf("[%llx]", runtime_address);
-			ZydisFormatterFormatInstruction(&formatter, &instruction, buffer, sizeof(buffer), runtime_address);
+			//ZydisFormatterFormatInstruction(&formatter, &instruction, operands, operands->element_count, runtime_address);
 			printf("%s\n", buffer);
 
 			offset += instruction.length;
