@@ -631,7 +631,7 @@ namespace hookftw
 
 			char buffer[256];
 			printf("[%llx]", runtime_address);
-			//ZydisFormatterFormatInstruction(&formatter, &instruction, operands, operands->element_count, runtime_address);
+			ZydisFormatterFormatInstruction(&formatter, &instruction, operands, operands->element_count, buffer, sizeof(buffer), runtime_address);
 			printf("%s\n", buffer);
 
 			offset += instruction.length;
