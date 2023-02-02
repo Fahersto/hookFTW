@@ -48,7 +48,7 @@ namespace hookftw
         printf("Warning - QueryPageProtection not implemented¡\n");
         #endif
 
-        return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE;
+        return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
 
     }
 

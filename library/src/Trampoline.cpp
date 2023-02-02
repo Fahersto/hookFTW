@@ -252,7 +252,7 @@ namespace hookftw
 				return trampoline;
 
 #elif _WIN32
-				* restrictedRelocation = false;
+				*restrictedRelocation = false;
 				// we currently have no way to deal with this situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
 				return false;
 #endif

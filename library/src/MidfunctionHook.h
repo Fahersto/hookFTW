@@ -1,8 +1,8 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <vector>
 #include <xmmintrin.h>
-#include <functional>
 
 #include "Registers.h"
 
@@ -65,7 +65,6 @@ namespace hookftw
 		void Hook(int8_t* sourceAddress, void __fastcall proxy(context* ctx));
 
 		void Unhook();
-
 
 		// TODO this should not be accessible here. But we need to get here from context
 		void ChangeReturn(int64_t returnValue);
