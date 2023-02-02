@@ -14,18 +14,18 @@ namespace hookftw
     enum class MemoryPageProtection
     {
     #ifdef _WIN32
-        PAGE_READONLY          = PAGE_READONLY,
-        PAGE_READWRITE         = PAGE_READWRITE,
-        PAGE_EXECUTE           = PAGE_EXECUTE,
-        PAGE_EXECUTE_READ      = PAGE_EXECUTE_READ,
-        PAGE_EXECUTE_READWRITE = PAGE_EXECUTE_READWRITE
+        HOOKFTW_PAGE_READONLY          = PAGE_READONLY,
+        HOOKFTW_PAGE_READWRITE         = PAGE_READWRITE,
+        HOOKFTW_PAGE_EXECUTE           = PAGE_EXECUTE,
+        HOOKFTW_PAGE_EXECUTE_READ      = PAGE_EXECUTE_READ,
+        HOOKFTW_PAGE_EXECUTE_READWRITE = PAGE_EXECUTE_READWRITE
 
     #elif __linux
-        PAGE_READONLY          = PROT_READ,
-        PAGE_READWRITE         = PROT_READ | PROT_WRITE,
-        PAGE_EXECUTE           = PROT_EXEC,
-        PAGE_EXECUTE_READ      = PROT_EXEC | PROT_READ,
-        PAGE_EXECUTE_READWRITE = PROT_EXEC | PROT_READ | PROT_WRITE
+        HOOKFTW_PAGE_READONLY          = PROT_READ,
+        HOOKFTW_PAGE_READWRITE         = PROT_READ | PROT_WRITE,
+        HOOKFTW_PAGE_EXECUTE           = PROT_EXEC,
+        HOOKFTW_PAGE_EXECUTE_READ      = PROT_EXEC | PROT_READ,
+        HOOKFTW_PAGE_EXECUTE_READWRITE = PROT_EXEC | PROT_READ | PROT_WRITE
 
     #endif
     };
@@ -43,8 +43,8 @@ namespace hookftw
 class Memory
 {
     public:
-        static int8_t* VirtualAlloc(int8_t* address, int32_t size, MemoryPageProtection protection, MemoryPageFlag flag);
-        static bool VirtualFree(int8_t* address, int32_t size);
+        static int8_t* AllocPage(int8_t* address, int32_t size, MemoryPageProtection protection, MemoryPageFlag flag);
+        static bool FreePage(int8_t* address, int32_t size);
         static bool ModifyPageProtection(int8_t* address, int32_t size, MemoryPageProtection protection);
         static MemoryPageProtection QueryPageProtection(int8_t* address);
         static int32_t GetPageSize();

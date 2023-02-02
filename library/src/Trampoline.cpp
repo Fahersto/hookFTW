@@ -150,7 +150,7 @@ namespace hookftw
 				auto tmp = (int8_t*)targetAddress;
 				// attempt to allocate the trampoline. If we fail, we try again on the next loop iteration.
 				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down
-				trampoline = Memory::VirtualAlloc((int8_t*)targetAddress, pageSize, MemoryPageProtection::PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
+				trampoline = Memory::AllocPage((int8_t*)targetAddress, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 			}
 			else
 			{
@@ -237,7 +237,7 @@ namespace hookftw
 				// try to allocate trampoline_ within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
 				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
 				// if the call with this target address fails we keep trying
-				trampoline = Memory::VirtualAlloc(targetAddress, pageSize, MemoryPageProtection::PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
+				trampoline = Memory::AllocPage(targetAddress, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 			}
 			else
 			{

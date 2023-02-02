@@ -157,7 +157,7 @@ namespace hookftw
 
 		// make page of detour address writeable
 		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress);
-		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 		//DWORD pageProtection;
 		//VirtualProtect(sourceAddress, hookLength_, PAGE_EXECUTE_READWRITE, &pageProtection);
 
@@ -203,7 +203,7 @@ namespace hookftw
 		//VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
 
 		// make trampoline executable
-		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 		//VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
 
 		// flush instruction cache for new executable region to ensure cache coherency
@@ -224,7 +224,7 @@ namespace hookftw
 	{
 		// make page writeable
 		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress_);
-		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 		//DWORD oldProtection;
 		//VirtualProtect(sourceAddress_, hookLength_, PAGE_EXECUTE_READWRITE, &oldProtection);
 
@@ -239,7 +239,7 @@ namespace hookftw
 		delete[] originalBytes_;
 
 		// free trampolin memory page
-		Memory::VirtualFree(trampoline_, 0);
+		Memory::FreePage(trampoline_, 0);
 		//VirtualFree(trampoline_, 0, MEM_RELEASE);
 	}
 

@@ -4,7 +4,6 @@
 #include <MidfunctionHook.h>
 #include <Detour.h>
 #include <VFTHook.h>
-#include <Logger.h>
 #include <DbgSymbols.h>
 #include <Decoder.h>
 #include <VEHHook.h>

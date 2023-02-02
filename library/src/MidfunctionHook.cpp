@@ -512,7 +512,7 @@ namespace hookftw
 	{
 		// make page writeable
 		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress_);
-		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 
 		// copy back original bytes
 		memcpy(sourceAddress_, originalBytes_, hookLength_);
@@ -524,7 +524,7 @@ namespace hookftw
 		delete[] originalBytes_;
 
 		// free trampolin memory page
-		Memory::VirtualFree(trampoline_, Memory::GetPageSize());
+		Memory::FreePage(trampoline_, Memory::GetPageSize());
 	}
 
 	/**

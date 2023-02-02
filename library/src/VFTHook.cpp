@@ -28,7 +28,7 @@ namespace hookftw
 		MemoryPageProtection oldProtection = Memory::QueryPageProtection((int8_t*)&vftable_[index]);
 
 		//make memory page writeable
-		Memory::ModifyPageProtection((int8_t*)&vftable_[index], sizeof(void*), MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		Memory::ModifyPageProtection((int8_t*)&vftable_[index], sizeof(void*), MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 
 		//overwrite function pointer in vftable to hook function
 		vftable_[index] = hookedFunction;
@@ -69,7 +69,7 @@ namespace hookftw
 			MemoryPageProtection oldProtection = Memory::QueryPageProtection((int8_t*)&vftable_[pair.first]);
 
 			//make memory page writeable
-			Memory::ModifyPageProtection((int8_t*)&vftable_[pair.first], sizeof(void*), MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+			Memory::ModifyPageProtection((int8_t*)&vftable_[pair.first], sizeof(void*), MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 
 			//overwrite function pointer in vftable to hook function
 			vftable_[pair.first] = pair.second;

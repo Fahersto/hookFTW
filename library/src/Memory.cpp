@@ -9,7 +9,7 @@
 
 namespace hookftw
 {
-    int8_t* Memory::VirtualAlloc(int8_t* address, int32_t size, MemoryPageProtection protection, MemoryPageFlag flag)
+    int8_t* Memory::AllocPage(int8_t* address, int32_t size, MemoryPageProtection protection, MemoryPageFlag flag)
     {
         #ifdef _WIN32
         return (int8_t*)VirtualAlloc(address, size, (int)flag, (int)protection);
@@ -18,7 +18,7 @@ namespace hookftw
         #endif
     }
 
-    bool Memory::VirtualFree(int8_t* address, int32_t size)
+    bool Memory::FreePage(int8_t* address, int32_t size)
     {
         #ifdef _WIN32
         if (!VirtualFree(address, 0, MEM_RELEASE))
@@ -48,7 +48,7 @@ namespace hookftw
         printf("Warning - QueryPageProtection not implemented¡\n");
         #endif
 
-        return MemoryPageProtection::PAGE_EXECUTE_READ;
+        return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE;
 
     }
 
@@ -56,7 +56,7 @@ namespace hookftw
     {
         #ifdef _WIN32
         DWORD old;
-        if (!VirtualProtect(address, size, protection, &old))
+        if (!VirtualProtect(address, size, (DWORD)protection, &old))
         {
             return false;
         }
