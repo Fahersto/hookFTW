@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -43,6 +44,7 @@ namespace hookftw
 class Memory
 {
     public:
+        static int8_t* FindFunctionInModule(std::string moduleName, std::string functionName);
         static int8_t* AllocPage(int8_t* address, int32_t size, MemoryPageProtection protection, MemoryPageFlag flag);
         static bool FreePage(int8_t* address, int32_t size);
         static bool ModifyPageProtection(int8_t* address, int32_t size, MemoryPageProtection protection);

@@ -9,6 +9,24 @@
 
 namespace hookftw
 {
+    int8_t* Memory::FindFunctionInModule(std::string moduleName, std::string functionName)
+    {
+        #ifdef _WIN32
+        HMODULE moduleHandle = GetModuleHandleA(moduleName.c_str());
+        if (moduleHandle)
+        {
+            return (int8_t*)GetProcAddress(moduleHandle, functionName.c_str());
+        }
+        #elif __linux
+        void* handle = dlopen(moduleName.c_str(), RTLD_LAZY);
+        if (handle)
+        {
+            return (int8_t*)dlsym(handle, functionName.c_str());
+        }
+        #endif
+        return nullptr;
+    }
+
     int8_t* Memory::AllocPage(int8_t* address, int32_t size, MemoryPageProtection protection, MemoryPageFlag flag)
     {
         #ifdef _WIN32
