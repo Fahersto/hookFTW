@@ -1,12 +1,15 @@
 #include "MidfunctionHook.h"
 
 #include <cassert>
+#include <iostream>
+#include <string.h>
 #include <vector>
 
 #include <Zydis/Zydis.h>
 #include <Zydis/DecoderTypes.h>
 
 #include "Decoder.h"
+#include "Memory.h"
 #include "Trampoline.h"
 
 namespace hookftw
@@ -508,20 +511,20 @@ namespace hookftw
 	void MidfunctionHook::Unhook()
 	{
 		// make page writeable
-		DWORD oldProtection;
-		VirtualProtect(sourceAddress_, hookLength_, PAGE_EXECUTE_READWRITE, &oldProtection);
+		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress_);
+		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 
 		// copy back original bytes
 		memcpy(sourceAddress_, originalBytes_, hookLength_);
 
 		// restore page protection
-		VirtualProtect(sourceAddress_, hookLength_, oldProtection, &oldProtection);
+		Memory::ModifyPageProtection(sourceAddress_, hookLength_, oldProtection);
 
 		// clean up allocated memory
 		delete[] originalBytes_;
 
 		// free trampolin memory page
-		VirtualFree(trampoline_, 0, MEM_RELEASE);
+		Memory::FreePage(trampoline_, Memory::GetPageSize());
 	}
 
 	/**

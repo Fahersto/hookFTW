@@ -1,8 +1,9 @@
 #include "Trampoline.h"
 
 #include "Decoder.h"
+#include "Memory.h"
 
-#include <Windows.h>
+#include <iostream>
 
 
 namespace hookftw
@@ -119,8 +120,7 @@ namespace hookftw
 		const int32_t signedIntMaxValue = 0x7fffffff;
 
 		// allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
+		int32_t pageSize = Memory::GetPageSize();
 		int64_t allocationAttempts = 0;
 
 		// calculate the lowest and highest address than can be reached by a jmp rel32 when placing it at the hookAddress
@@ -138,10 +138,10 @@ namespace hookftw
 #ifdef _WIN64
 			// start with the highest possible address and go down by one pageSize for every attempt. VirtualAlloc rounds down to nearest multiple of allocation granularity.
 			// we start by substracting 1 page (++allocationAttempts) to account for VirtualAlloc rounding down the target address to the next page boundary
-			targetAddress = (int64_t)sourceAddress + signedIntMaxValue + 5 - (++allocationAttempts * systemInfo.dwPageSize);
+			targetAddress = (int64_t)sourceAddress + signedIntMaxValue + 5 - (++allocationAttempts * pageSize);
 #elif _WIN32
 			// for 32 bit only addresses up to 0x7fffffff are in user mode and we can only allocate user mode memory
-			targetAddress = signedIntMaxValue - ++allocationAttempts * systemInfo.dwPageSize;
+			targetAddress = signedIntMaxValue - ++allocationAttempts * pageSize;
 #endif
 
 			// check if the target address can still be reached with rel32. If the target address is too low, we failed to allocate it withing JMP rel32 range.
@@ -149,14 +149,14 @@ namespace hookftw
 			{
 				auto tmp = (int8_t*)targetAddress;
 				// attempt to allocate the trampoline. If we fail, we try again on the next loop iteration.
-				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
-				trampoline = (int8_t*)VirtualAlloc((int8_t*)targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down
+				trampoline = Memory::AllocPage((int8_t*)targetAddress, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 			}
 			else
 			{
 #ifdef _WIN64
 				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				trampoline = (int8_t*)VirtualAlloc(NULL, pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
 				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
@@ -188,8 +188,7 @@ namespace hookftw
 		const int32_t signedIntMaxValue = 0x7fffffff;
 
 		// allocate the trampoline_. We need to allocate this first so we know how many bytes we need to overwrite (5 or 14 Bytes)
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
+		int32_t pageSize = Memory::GetPageSize();
 		int64_t allocationAttempts = 0;
 
 		// the size of the static part of the trampoline is 467 Bytes. Additionally relocated Bytes are appended to the trampoline. The length of these instructions depends on the instructions relocated.
@@ -222,11 +221,11 @@ namespace hookftw
 		int8_t* trampoline = nullptr;
 		while (!trampoline)
 		{
-			// allocation attempts are started from the highest possible address to the lowest. We substract dwPageSize to account for VirtualAlloc rounding down the target address to the next page boundary. 
+			// allocation attempts are started from the highest possible address to the lowest. We substract pageSize to account for VirtualAlloc rounding down the target address to the next page boundary. 
 			// start with highest address that can both: 
 			// - reach lowest RIP-relative
 			// - can be reached by jmp rel32
-			int8_t* targetAddress = (int8_t*)initialTargetAddress - trampolineLengthUpperBound - (++allocationAttempts * systemInfo.dwPageSize);
+			int8_t* targetAddress = (int8_t*)initialTargetAddress - trampolineLengthUpperBound - (++allocationAttempts * pageSize);
 
 			// check if we are still high enough
 			// we know we failed to allocate with rel32 when one of these statements is true:
@@ -238,13 +237,13 @@ namespace hookftw
 				// try to allocate trampoline_ within "JMP rel32" range so we can hook by overwriting 5 Bytes instead of 14 Bytes
 				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down 
 				// if the call with this target address fails we keep trying
-				trampoline = (int8_t*)VirtualAlloc(targetAddress, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				trampoline = Memory::AllocPage(targetAddress, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 			}
 			else
 			{
 #ifdef _WIN64
 				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline = (int8_t*)VirtualAlloc(NULL, systemInfo.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				trampoline = (int8_t*)VirtualAlloc(NULL, pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
 				// we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
@@ -253,13 +252,13 @@ namespace hookftw
 				return trampoline;
 
 #elif _WIN32
-				* restrictedRelocation = false;
+				*restrictedRelocation = false;
 				// we currently have no way to deal with this situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
 				return false;
 #endif
 				// this should not be reached
-				* restrictedRelocation = false;
-				return false;
+				*restrictedRelocation = false;
+				return nullptr;
 			}
 		}
 		printf("[Info] - Trampoline - Allocated trampoline at %p (using %lld attempts)\n", trampoline, allocationAttempts);

@@ -1,7 +1,11 @@
 #include "IATHook.h"
 
 #include <cstdint>
-#include <windows.h>
+
+#ifdef _WIN32
+#include <Windows.h>
+#elif __linux
+#endif
 
 namespace hookftw
 {

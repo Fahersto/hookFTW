@@ -1,9 +1,11 @@
 #include "Decoder.h"
 
 
+#include "Zydis/Zydis.h"
+
 #include <cstdio>
-#include <Windows.h>
-#include <Zydis/Zydis.h>
+#include <string.h>
+
 
 
 namespace hookftw
@@ -332,7 +334,7 @@ namespace hookftw
 #ifdef _WIN64
 			ZyanStatus status = ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 #elif _WIN32
-			ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_ADDRESS_WIDTH_32);
+			ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
 #else
 			printf("[Error] - Decoder - Unsupported architecture\n");
 #endif
@@ -596,7 +598,7 @@ namespace hookftw
 	 * @param address Address to start disassembling
 	 * @param byteCount amount of bytes to disassemble
 	 */
-	void Decoder::PrintInstructions(int8_t* address, size_t byteCount)
+	void Decoder::PrintInstructions(int8_t* address, int32_t byteCount)
 	{
 		ZyanU8* data = (ZyanU8*)address;
 
@@ -606,7 +608,7 @@ namespace hookftw
 #ifdef _WIN64
 		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 #elif _WIN32
-		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_ADDRESS_WIDTH_32);
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
 #else
 		printf("[Error] - Disassembler - Unsupported architecture\n");
 #endif
