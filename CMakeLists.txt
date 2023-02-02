@@ -10,7 +10,11 @@ option(ZYDIS_BUILD_EXAMPLES "" OFF)	# Disable build of examples
 
 add_subdirectory("deps/zydis")
 
-add_subdirectory(example)
-add_subdirectory(injector)
+if (WIN32)
+    add_subdirectory(example)
+    add_subdirectory(injector)
+endif (WIN32)
+
+
 add_subdirectory(library)
 add_subdirectory(test)

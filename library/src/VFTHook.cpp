@@ -1,6 +1,6 @@
 #include "VFTHook.h"
 
-#include <Windows.h>
+#include "Memory.h"
 
 namespace hookftw
 {
@@ -24,15 +24,17 @@ namespace hookftw
 	{
 		hookedfuncs_.insert(std::make_pair(index, vftable_[index]));
 
+		// safe old protection
+		MemoryPageProtection oldProtection = Memory::QueryPageProtection((int8_t*)&vftable_[index]);
+
 		//make memory page writeable
-		DWORD pageProtection;
-		VirtualProtect(&vftable_[index], sizeof(void*), PAGE_EXECUTE_READWRITE, &pageProtection);
+		Memory::ModifyPageProtection((int8_t*)&vftable_[index], sizeof(void*), MemoryPageProtection::PAGE_EXECUTE_READWRITE);
 
 		//overwrite function pointer in vftable to hook function
 		vftable_[index] = hookedFunction;
 
 		//restore page protection
-		VirtualProtect(&vftable_[index], sizeof(void*), pageProtection, &pageProtection);
+		Memory::ModifyPageProtection((int8_t*)&vftable_[index], sizeof(void*), oldProtection);
 
 		return hookedfuncs_[index];
 	}
@@ -62,10 +64,18 @@ namespace hookftw
 	{
 		for (const std::pair<int, int8_t*> pair : hookedfuncs_)
 		{
-			DWORD oldProtection;
-			VirtualProtect(&vftable_[pair.first], sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtection);
+
+			// safe old protection
+			MemoryPageProtection oldProtection = Memory::QueryPageProtection((int8_t*)&vftable_[pair.first]);
+
+			//make memory page writeable
+			Memory::ModifyPageProtection((int8_t*)&vftable_[pair.first], sizeof(void*), MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+
+			//overwrite function pointer in vftable to hook function
 			vftable_[pair.first] = pair.second;
-			VirtualProtect(&vftable_[pair.first], sizeof(void*), oldProtection, &oldProtection);
+
+			//restore page protection
+			Memory::ModifyPageProtection((int8_t*)&vftable_[pair.first], sizeof(void*), oldProtection);
 		}
 	}
 }

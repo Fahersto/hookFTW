@@ -1,11 +1,14 @@
 #include "Detour.h"
 
 #include "Decoder.h"
+#include "Memory.h"
 #include "Trampoline.h"
 
 #include <cstdint>
 #include <cassert>
 #include <climits>
+#include <iostream>
+#include <string.h>
 
 namespace hookftw
 {
@@ -153,8 +156,10 @@ namespace hookftw
 		memcpy(originalBytes_, sourceAddress, hookLength_);
 
 		// make page of detour address writeable
-		DWORD pageProtection;
-		VirtualProtect(sourceAddress, hookLength_, PAGE_EXECUTE_READWRITE, &pageProtection);
+		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		//DWORD pageProtection;
+		//VirtualProtect(sourceAddress, hookLength_, PAGE_EXECUTE_READWRITE, &pageProtection);
 
 		// allocate trampoline
 		Trampoline trampoline;
@@ -194,13 +199,15 @@ namespace hookftw
 		}
 
 		// restore page protection
-		VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, oldProtection);
+		//VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
 
 		// make trampoline executable
-		VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		//VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
 
 		// flush instruction cache for new executable region to ensure cache coherency
-		FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
+		//FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
 
 		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
@@ -216,20 +223,24 @@ namespace hookftw
 	void Detour::Unhook()
 	{
 		// make page writeable
-		DWORD oldProtection;
-		VirtualProtect(sourceAddress_, hookLength_, PAGE_EXECUTE_READWRITE, &oldProtection);
+		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress_);
+		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::PAGE_EXECUTE_READWRITE);
+		//DWORD oldProtection;
+		//VirtualProtect(sourceAddress_, hookLength_, PAGE_EXECUTE_READWRITE, &oldProtection);
 
 		// copy back original bytes
 		memcpy(sourceAddress_, originalBytes_, hookLength_);
 
 		// restore page protection
-		VirtualProtect(sourceAddress_, hookLength_, oldProtection, &oldProtection);
+		Memory::ModifyPageProtection(sourceAddress_, hookLength_, oldProtection);
+		//VirtualProtect(sourceAddress_, hookLength_, oldProtection, &oldProtection);
 
 		// clean up allocated memory
 		delete[] originalBytes_;
 
 		// free trampolin memory page
-		VirtualFree(trampoline_, 0, MEM_RELEASE);
+		Memory::VirtualFree(trampoline_, 0);
+		//VirtualFree(trampoline_, 0, MEM_RELEASE);
 	}
 
 }

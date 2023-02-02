@@ -29,7 +29,7 @@ namespace hookftw
 	public:
 		Decoder();
 	
-		void PrintInstructions(int8_t* address, size_t byteCount);
+		void PrintInstructions(int8_t* address, int32_t byteCount);
 		int GetLengthOfInstructions(int8_t* sourceAddress, int length);
 		std::vector<int8_t*> FindRelativeInstructionsOfType(int8_t* startAddress, RelativeInstruction type, int length);
 		bool CalculateRipRelativeMemoryAccessBounds(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress);

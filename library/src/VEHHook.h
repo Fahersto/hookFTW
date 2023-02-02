@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Windows.h>
 #include <cstdint>
 #include <map>
 
@@ -17,7 +16,7 @@ namespace hookftw
 	{
 		void* handleVEH_;
 	
-		DWORD originalPageProtection_;
+		int32_t originalPageProtection_;
 
 		static LONG WINAPI CustomExceptionHandler(EXCEPTION_POINTERS* pExceptionInfo);
 		static int8_t* addressedWhichCausedException_;

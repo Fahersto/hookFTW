@@ -4,8 +4,6 @@
 #include <dbghelp.h>
 #include <tchar.h>
 
-#include "Logger.h"
-
 namespace hookftw
 {
     bool DbgSymbols::symbolsLoaded_ = false;
@@ -91,7 +89,7 @@ namespace hookftw
         UNREFERENCED_PARAMETER(UserContext);
         char buffer[5000];
         sprintf(buffer, "%llx %4u %s\n", pSymInfo->Address, SymbolSize, pSymInfo->Name);
-        Logger::Log(buffer);
+        printf(buffer);
         return TRUE;
     }
 

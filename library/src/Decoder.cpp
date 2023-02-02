@@ -1,9 +1,11 @@
 #include "Decoder.h"
 
 
+#include "Zydis/Zydis.h"
+
 #include <cstdio>
-#include <Windows.h>
-#include <Zydis/Zydis.h>
+#include <string.h>
+
 
 
 namespace hookftw
@@ -596,7 +598,7 @@ namespace hookftw
 	 * @param address Address to start disassembling
 	 * @param byteCount amount of bytes to disassemble
 	 */
-	void Decoder::PrintInstructions(int8_t* address, size_t byteCount)
+	void Decoder::PrintInstructions(int8_t* address, int32_t byteCount)
 	{
 		ZyanU8* data = (ZyanU8*)address;
 

@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-#include <Windows.h>
 #include <xmmintrin.h>
 #include <functional>
 
