@@ -65,7 +65,7 @@ namespace hookftw
 
 		// make page of detour address writeable
 		MemoryPageProtection oldPageProtection = Memory::QueryPageProtection(sourceAddress);
-		Memory::ModifyPageProtection(sourceAddress, hookLength_, oldPageProtection);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 
 		// relocate to be overwritten instructions to trampoline
 		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, this->hookLength_, trampoline_, restrictedRelocation);

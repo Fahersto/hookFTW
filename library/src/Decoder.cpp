@@ -72,12 +72,12 @@ namespace hookftw
 	 */
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
-#ifdef _WIN64
+#ifdef __x86_64__
 		// For reference see: https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
 		// Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (x64 only)
 		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM &&
 			instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5; //disp32 see table	
-#elif _WIN32
+#else
 		// there is no RIP-relative memory address in 32 bit
 		return false;
 #endif
@@ -97,19 +97,19 @@ namespace hookftw
 		{
 			if (instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5)
 			{
-#ifdef _WIN64
+#ifdef __x86_64__
 				// disp32 see ModR/M table (intel manual)
 				ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
 
 				// we can use rax here as it has not to be preserved in function calls
 				const int relocatedCallInstructionsLength = 12;
-				int8_t relocatedCallInstructions[relocatedCallInstructionsLength] = {
+				uint8_t relocatedCallInstructions[relocatedCallInstructionsLength] = {
 					0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,			//movabs rax, 0x1122334455667788. 
 					0xFF, 0x10															//call   [rax]
 				};
 				*(uint64_t*)&relocatedCallInstructions[2] = originalJumpTarget;
 				relocatedbytes.insert(relocatedbytes.end(), relocatedCallInstructions, relocatedCallInstructions + relocatedCallInstructionsLength);
-#elif _WIN32
+#else
 				// just copy original call instruction. There is no rip-relative addressing in 32 bit. The displacement is relative to 0.
 				relocatedbytes.insert(relocatedbytes.end(), instructionAddress, instructionAddress + instruction.length);
 #endif 
@@ -126,16 +126,16 @@ namespace hookftw
 			// 9a calls.. CALL ptr16:16, CALL ptr16:32 are not handled (no support for 16 bit architecture)
 			ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
 
-#ifdef _WIN64
+#ifdef __x86_64__
 			const int relocatedCallInstructionsLength = 12;
 			// we can use rax here as it has not to be preserved in function calls
-			int8_t relocatedCallInstructions[relocatedCallInstructionsLength] = {
+			uint8_t relocatedCallInstructions[relocatedCallInstructionsLength] = {
 				0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,			//movabs rax, 0x1122334455667788. 
 				0xFF, 0xD0															//call   rax
 			};
 			*(uint64_t*)&relocatedCallInstructions[2] = originalJumpTarget;
 			relocatedbytes.insert(relocatedbytes.end(), relocatedCallInstructions, relocatedCallInstructions + relocatedCallInstructionsLength);
-#elif _WIN32
+#else
 			const int relocatedCallInstructionsLength = 7;
 			// we can use eax here as it has not to be preserved in function calls
 			int8_t relocatedCallInstructions[relocatedCallInstructionsLength] = {
@@ -176,7 +176,7 @@ namespace hookftw
 			}
 			relocatedbytes[relocatedbytes.size() - elementSizeInBytes] = 0x2;
 
-#ifdef _WIN64
+#ifdef __x86_64__
 			// jmp after jcc instruction because jcc is not taken
 			relocatedbytes.push_back(0xEB);	//jmp    0x10
 			relocatedbytes.push_back(0xE);	//
@@ -192,7 +192,7 @@ namespace hookftw
 
 			relocatedbytes.insert(relocatedbytes.end(), (int8_t*)&originalJumpTarget, (int8_t*)&originalJumpTarget + 8); //destination to jump to: 8 Bytes
 
-#elif _WIN32
+#else
 			// jmp after jcc instruction because jcc is not taken
 			relocatedbytes.push_back(0xEB);	//jmp    0x07
 			relocatedbytes.push_back(0x5);	//
@@ -212,7 +212,7 @@ namespace hookftw
 			// relocation of jmp instructions
 			if (instruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE)
 			{
-#ifdef _WIN64
+#ifdef __x86_64__
 				if (instruction.opcode == 0xff)
 				{
 					const int lengthOfIndirectJmpInstruction = 6;
@@ -259,7 +259,7 @@ namespace hookftw
 					relocatedbytes.insert(relocatedbytes.end(), (int8_t*)&originalJumpTarget, (int8_t*)&originalJumpTarget + 8); // destination to jump to: 8 Bytes
 				}
 
-#elif _WIN32
+#else
 				// this -5 accounts for using the 5 byte jmp. Even to relocate jmp rel8/rel16/rel32 are all relocated using a 5 byte JMP
 				int32_t newRelativeAddress = (int32_t)((int64_t)originalJumpTarget - (int64_t)relocatedInstructionAddress - 5);
 
@@ -331,12 +331,10 @@ namespace hookftw
 		if (!_zydisDecoder)
 		{
 			_zydisDecoder = &decoder;
-#ifdef _WIN64
+#ifdef __x86_64__
 			ZyanStatus status = ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
-#elif _WIN32
-			ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
 #else
-			printf("[Error] - Decoder - Unsupported architecture\n");
+			ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
 #endif
 		}
 	}
@@ -605,12 +603,10 @@ namespace hookftw
 		// initialize decoder context
 		ZydisDecoder decoder;
 
-#ifdef _WIN64
+#ifdef __x86_64__
 		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
-#elif _WIN32
-		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
 #else
-		printf("[Error] - Disassembler - Unsupported architecture\n");
+		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
 #endif
 		// loop over the instructions in our buffer.
 		// the runtime-address (instruction pointer) is chosen arbitrary here in order to better visualize relative addressing
