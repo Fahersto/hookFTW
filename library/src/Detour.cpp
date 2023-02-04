@@ -21,7 +21,7 @@ namespace hookftw
 
 	}
 
-#ifdef _WIN64
+#ifdef __x86_64__
 	/**
 	 * \brief Creates a detour hook.
 	 *
@@ -64,8 +64,8 @@ namespace hookftw
 		memcpy(originalBytes_, sourceAddress, hookLength_);
 
 		// make page of detour address writeable
-		DWORD pageProtection;
-		VirtualProtect(sourceAddress, hookLength_, PAGE_EXECUTE_READWRITE, &pageProtection);
+		MemoryPageProtection oldPageProtection = Memory::QueryPageProtection(sourceAddress);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, oldPageProtection);
 
 		// relocate to be overwritten instructions to trampoline
 		std::vector<int8_t> relocatedBytes = decoder.Relocate(sourceAddress, this->hookLength_, trampoline_, restrictedRelocation);
@@ -116,10 +116,10 @@ namespace hookftw
 		}
 
 		// restore page protection
-		VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
+		Memory::ModifyPageProtection(sourceAddress, hookLength_, oldPageProtection);
 
 		// make trampoline executable
-		VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+		Memory::ModifyPageProtection(trampoline_, relocatedBytes.size() + stubJumpBackLength, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 
 		// flush instruction cache for new executable region to ensure cache coherency
 		//FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);

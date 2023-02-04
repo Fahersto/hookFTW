@@ -31,7 +31,7 @@ namespace hookftw
 		int fiveBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 5);
 		int fourteenBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 14);
 
-#ifdef _WIN64 
+#ifdef __x86_64__ 
 		int64_t lowestRelativeAddress = 0;
 		int64_t hightestRelativeAddress = 0;
 
@@ -96,7 +96,7 @@ namespace hookftw
 				return nullptr;
 			}
 		}
-#elif _WIN32
+#else
 		trampoline = this->AllocateTrampoline(sourceAddress, restrictedRelocation);
 		if (!trampoline)
 		{
@@ -135,11 +135,11 @@ namespace hookftw
 		int64_t targetAddress = 0;
 		while (!trampoline)
 		{
-#ifdef _WIN64
+#ifdef __x86_64__
 			// start with the highest possible address and go down by one pageSize for every attempt. VirtualAlloc rounds down to nearest multiple of allocation granularity.
 			// we start by substracting 1 page (++allocationAttempts) to account for VirtualAlloc rounding down the target address to the next page boundary
 			targetAddress = (int64_t)sourceAddress + signedIntMaxValue + 5 - (++allocationAttempts * pageSize);
-#elif _WIN32
+#else
 			// for 32 bit only addresses up to 0x7fffffff are in user mode and we can only allocate user mode memory
 			targetAddress = signedIntMaxValue - ++allocationAttempts * pageSize;
 #endif
@@ -154,9 +154,9 @@ namespace hookftw
 			}
 			else
 			{
-#ifdef _WIN64
+#ifdef __x86_64__
 				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline = (int8_t*)VirtualAlloc(NULL, pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				trampoline = Memory::AllocPage(NULL, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 
 				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
@@ -165,7 +165,7 @@ namespace hookftw
 
 				return trampoline;
 
-#elif _WIN32
+#else
 				* restrictedRelocation = false;
 				// we currently have no way to deal with situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
 				return nullptr;
@@ -241,9 +241,9 @@ namespace hookftw
 			}
 			else
 			{
-#ifdef _WIN64
+#ifdef __x86_64__
 				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
-				trampoline = (int8_t*)VirtualAlloc(NULL, pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+				trampoline = Memory::AllocPage(NULL, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 
 				// we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
@@ -251,7 +251,7 @@ namespace hookftw
 				printf("[Warning] - Trampoline - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
 				return trampoline;
 
-#elif _WIN32
+#else
 				*restrictedRelocation = false;
 				// we currently have no way to deal with this situation in 32 Bits. I never observed this to be an issue though. There may be a guarantee that this never happens?
 				return false;

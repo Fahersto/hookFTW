@@ -5,6 +5,7 @@
 #ifdef _WIN32
 #elif __linux
 #include <unistd.h>
+#include <dlfcn.h>
  #endif
 
 namespace hookftw
