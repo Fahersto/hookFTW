@@ -16,4 +16,4 @@ endif (WIN32)
 
 add_subdirectory(example)
 add_subdirectory(library)
-#add_subdirectory(test)
+add_subdirectory(test)

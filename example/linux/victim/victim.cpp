@@ -3,7 +3,8 @@
 #include <iostream>
 
 #include "Detour.h"
-#include "LinuxMidfunctionHook.h"
+#include "MidfunctionHook.h"
+
 
 int8_t* original = nullptr;
 
@@ -43,4 +44,5 @@ int main()
 	printf("Midfunction hooked: %d\n", CalculateInput(1));
 	midfunctionHook.Unhook();
 	printf("Midfunction unhooked: %d\n", CalculateInput(1));
+	return 0;
 }
