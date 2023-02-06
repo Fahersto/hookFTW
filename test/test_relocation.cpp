@@ -1,5 +1,6 @@
-#include <Windows.h>
+#include <cstdio>
 #include <cstdint>
+#include <cstring>
 
 #include <Decoder.h>
 
@@ -9,9 +10,9 @@
 *	THe results of the relocation have to be inspected manually.
 */
 
-#ifdef _WIN64
+#ifdef __x86_64
 const int callsLength = 40;
-int8_t calls[callsLength] =
+uint8_t calls[callsLength] =
 {
 	0xe8, 0x11, 0x22, 0x33, 0x44,				// E8 cd --> CALL rel32							--> call 0x44332216
 
@@ -30,7 +31,7 @@ int8_t calls[callsLength] =
 
 // as we handle all JCC using the same method we just 
 const int jumpsLength = 35;
-int8_t jumps[jumpsLength] =
+uint8_t jumps[jumpsLength] =
 {
 	0x77, 0x11,									// JA rel8
 	0x0F, 0x87, 0x11, 0x00, 0x00, 0x00,			// JA rel32
@@ -42,7 +43,7 @@ int8_t jumps[jumpsLength] =
 };
 
 const int loopLength = 6;
-int8_t loops[loopLength] =
+uint8_t loops[loopLength] =
 {
 	0xE2, 0x11,	// LOOP	  rel8
 	0xE1, 0x11,	// LOOPE  rel8
@@ -50,7 +51,7 @@ int8_t loops[loopLength] =
 };
 
 const int ripRelativeLength = 36;
-int8_t ripRelative[ripRelativeLength] =
+uint8_t ripRelative[ripRelativeLength] =
 {
 	0x29, 0x2D, 0xF5, 0xE9, 0x28, 0x7C,							// sub DWORD PTR [rip+0x7c28e9f5],ebp
 	0xC7, 0x05, 0xF3, 0xCE, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,	// mov DWORD PTR [rip+0xcef3],0x1
@@ -87,21 +88,21 @@ int main()
 {
 	printf("~~~ 64 bit relocation test ~~~ \n\n");
 	printf("~~~ Testing relocation of CALL ~~~ \n");
-	TestRelocation(calls, callsLength);
+	TestRelocation((int8_t*)calls, callsLength);
 	printf("\n");
 
 	printf("~~~ Testing relocation of Jcc ~~~ \n");
 	printf("~~~ Zydis can't reasonably print the mixture of code and data that 14 byte jumps use.\nCheatEngine generates a pseudo instruction to capture the semantics of the instuction ~~~ \n");
-	TestRelocation(jumps, jumpsLength);
+	TestRelocation((int8_t*)jumps, jumpsLength);
 	printf("\n");
 
 	printf("~~~ Testing relocation of LOOPcc ~~~ \n");
 	printf("~~~ Zydis can't reasonably print the mixture of code and data that 14 byte jumps use.\nCheatEngine generates a pseudo instruction to capture the semantics of the instuction ~~~ \n");
-	TestRelocation(loops, loopLength);
+	TestRelocation((int8_t*)loops, loopLength);
 	printf("\n");
 
 	printf("~~~ Testing relocation of RIP-relative memory accesses ~~~ \n");
-	TestRelocation(ripRelative, ripRelativeLength);
+	TestRelocation((int8_t*)ripRelative, ripRelativeLength);
 	printf("\n");
 }
 

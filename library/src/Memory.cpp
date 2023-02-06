@@ -5,6 +5,7 @@
 #ifdef _WIN32
 #elif __linux
 #include <unistd.h>
+#include <dlfcn.h>
  #endif
 
 namespace hookftw
@@ -79,11 +80,14 @@ namespace hookftw
             return false;
         }
         #elif __linux
-        if (mprotect(address, size, (int)protection))
+        uint64_t addressPageBoundary = (uint64_t)address & ~(sysconf(_SC_PAGE_SIZE) - 1);
+        if (mprotect((int8_t*)addressPageBoundary, size, (int)protection))
         {
+            int errsv = errno;
             return false;
         }
         #endif
+        return true;
     }
 
     int32_t Memory::GetPageSize()
