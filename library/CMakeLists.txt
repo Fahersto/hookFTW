@@ -30,6 +30,7 @@ file(GLOB_RECURSE LIBRARY_SOURCES LIST_DIRECTORIES true
     src/Decoder.h src/Decoder.cpp
     src/Detour.h src/Detour.cpp
     src/Memory.h src/Memory.cpp
+    src/LinuxMidfunctionHook.h src/LinuxMidfunctionHook.cpp
     src/Registers.h
     src/Trampoline.h src/Trampoline.cpp
     src/VFTHook.h src/VFTHook.cpp
