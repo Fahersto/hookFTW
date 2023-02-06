@@ -1,7 +1,7 @@
 ![hookftw banner](img/hookftw_banner.png)
 ![example workflow](https://github.com/fahersto/hookFTW/actions/workflows/cmake.yml/badge.svg)
 # hookFTW - hook for the win(dows)
-A hooking library for Windows (32/64 Bit).
+A hooking library for Windows (32/64 Bit) with Linux support.
 
 ## Setting up using CMAKE
 1. Clone including submodules:
@@ -21,7 +21,7 @@ git clone --recursive https://github.com/Fahersto/hookFTW.git
 	- Link Zydis.lib
 	
 ## Documentation
-HookFTW uses doxygen to generate its documentation. The Doxyfile is provided in this repository. A prebuild version can be found here: https://hookftw.schwubbeli.de/
+HookFTW uses doxygen to generate its documentation. The Doxyfile is provided in this repository. A prebuild version can be found here: https://hookftw.fahersto.de/
 
 ## Usage example
 
