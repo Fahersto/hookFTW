@@ -20,7 +20,7 @@ if (UNIX)
     ## Attacker
     file(GLOB_RECURSE ATTACKER_SOURCES LIST_DIRECTORIES true linux/attacker/*.h linux/attacker/*.cpp)
     
-    # Add example.dll
+    # Add example.so
     add_library (example SHARED ${ATTACKER_SOURCES})
 
      ## Victim
@@ -28,10 +28,10 @@ if (UNIX)
      # Add victim.exe
      add_executable(victim ${VICTIM_SOURCES})
     
-    # Add header files of hookftw.lib to search path (needed by example.dll)
+    # Add header files of hookftw.lib to search path (needed by example.so)
     include_directories(../library/src)
     
-    # Link hookftw.lib to example.dll
+    # Link hookftw.lib to example.so
     target_link_libraries(example hookftw)
 
      # Link hookftw.lib to victim
