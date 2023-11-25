@@ -5,10 +5,25 @@ A hooking library for Windows (32/64 Bit) with Linux support.
 
 ## Setting up using CMAKE
 1. Clone including submodules:
-```
+```bash
 git clone --recursive https://github.com/Fahersto/hookFTW.git
 ```
 2. Build the library using CMAKE.
+```bash
+mkdir build
+cd build
+cmake ..
+```
+
+Windows:
+```powershell
+devenv hookftw.sln /build Release
+```
+
+Linux:
+```bash
+make
+```
 
 ## Setting up manually
 1. Clone including submodules:
