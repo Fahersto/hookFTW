@@ -36,5 +36,6 @@ if (UNIX)
 
      # Link hookftw.lib to victim
      target_link_libraries(victim hookftw)
+     target_link_libraries(victim dl)
    
 endif (UNIX)
