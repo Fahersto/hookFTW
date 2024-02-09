@@ -21,7 +21,7 @@ namespace hookftw
 
 	}
 
-#ifdef __x86_64__
+#if __x86_64__ || _WIN64
 	/**
 	 * \brief Creates a detour hook.
 	 *

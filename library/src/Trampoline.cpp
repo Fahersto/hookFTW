@@ -31,7 +31,7 @@ namespace hookftw
 		int fiveBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 5);
 		int fourteenBytesWithoutCuttingInstructions = decoder.GetLengthOfInstructions(sourceAddress, 14);
 
-#ifdef __x86_64__ 
+#if __x86_64__ || _WIN64
 		int64_t lowestRelativeAddress = 0;
 		int64_t hightestRelativeAddress = 0;
 
@@ -135,7 +135,7 @@ namespace hookftw
 		int64_t targetAddress = 0;
 		while (!trampoline)
 		{
-#ifdef __x86_64__
+#if __x86_64__ || _WIN64
 			// start with the highest possible address and go down by one pageSize for every attempt. VirtualAlloc rounds down to nearest multiple of allocation granularity.
 			// we start by substracting 1 page (++allocationAttempts) to account for VirtualAlloc rounding down the target address to the next page boundary
 			targetAddress = (int64_t)sourceAddress + signedIntMaxValue + 5 - (++allocationAttempts * pageSize);
@@ -154,7 +154,7 @@ namespace hookftw
 			}
 			else
 			{
-#ifdef __x86_64__
+#if __x86_64__ || _WIN64
 				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
 				trampoline = Memory::AllocPage(NULL, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 
@@ -241,7 +241,7 @@ namespace hookftw
 			}
 			else
 			{
-#ifdef __x86_64__
+#if __x86_64__ || _WIN64
 				// if we couldn't allocate within +-2GB range let the system allocate the memory page anywhere and use and absolute jump. JMP [RIP+0] 0x1122334455667788 (14 Bytes)
 				trampoline = Memory::AllocPage(NULL, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
 
