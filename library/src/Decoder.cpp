@@ -4,8 +4,8 @@
 #include "Zydis/Zydis.h"
 
 #include <cstdio>
-#include <string.h>
-
+#include <cstdlib>
+#include <cstring>
 
 
 namespace hookftw
