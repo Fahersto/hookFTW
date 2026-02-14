@@ -8,6 +8,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/mman.h>
 #endif
 
 namespace hookftw
@@ -35,7 +36,12 @@ namespace hookftw
         #ifdef _WIN32
         return (int8_t*)VirtualAlloc(address, size, (int)flag, (int)protection);
         #elif __linux
-        return (int8_t*)mmap(address, size, (int)protection, (int)flag, -1, 0);
+        auto result = static_cast<int8_t*>(mmap(address, size, (int) protection, address ? (int) flag : MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+        if (result == MAP_FAILED)
+        {
+            return nullptr;
+        }
+        return result;
         #endif
     }
 

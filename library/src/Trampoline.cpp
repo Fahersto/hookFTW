@@ -45,7 +45,7 @@ namespace hookftw
 		// check if there was rip-relative memory access
 		if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
 		{
-			// there was no rip-relative memory acccess
+			// there was no rip-relative memory access
 			// attempt to allocate trampoline within +-2GB range of source address
 			trampoline = this->AllocateTrampoline(sourceAddress, restrictedRelocation);
 
@@ -68,7 +68,7 @@ namespace hookftw
 
 				// check if there is rip-relative memory access. Since we need to use a fourteenBytesWithoutCuttingInstructions byte jump we don't support relocating rip-relative instructions
 				// if we have rip-relativ memory access here, hooking failed
-				if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
+				if (!(lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0))
 				{
 					printf("[Error] - Trampoline - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
 					return nullptr;
@@ -144,7 +144,6 @@ namespace hookftw
 			// check if the target address can still be reached with rel32. If the target address is too low, we failed to allocate it withing JMP rel32 range.
 			if ((int64_t)targetAddress >= lowestAddressReachableByFiveBytesJump)
 			{
-				auto tmp = (int8_t*)targetAddress;
 				// attempt to allocate the trampoline. If we fail, we try again on the next loop iteration.
 				// we don't need to worry if our targetAddress is high enough because we start at the highest value that we can use and move down
 				trampoline = Memory::AllocPage((int8_t*)targetAddress, pageSize, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE, MemoryPageFlag::HOOKFTW_MEM_DEFAULT);
@@ -157,9 +156,6 @@ namespace hookftw
 
 				//we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
-
-				printf("[Warning] - Trampoline - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
-
 				return trampoline;
 
 #else
@@ -242,8 +238,6 @@ namespace hookftw
 
 				// we now require 14 bytes at the hook address to write an absolute JMP and we no longer can relocate rip-relative memory accesses
 				*restrictedRelocation = true;
-
-				printf("[Warning] - Trampoline - Could not allocate trampoline within desired range. We currently can't relocate rip-relative instructions in this case!\n");
 				return trampoline;
 
 #else

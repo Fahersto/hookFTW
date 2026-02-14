@@ -31,13 +31,14 @@ namespace hookftw
     #endif
     };
 
+    // these flags ensure identical behavior of memory allocation across platforms, so we can use the same code for trampoline allocation on both platforms
     enum class MemoryPageFlag
     {
     #ifdef _WIN32
         HOOKFTW_MEM_DEFAULT = MEM_RESERVE | MEM_COMMIT
 
     #elif __linux
-        HOOKFTW_MEM_DEFAULT = MAP_PRIVATE | MAP_ANONYMOUS
+        HOOKFTW_MEM_DEFAULT = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE
     #endif
     };
 
