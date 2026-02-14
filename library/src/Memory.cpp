@@ -119,7 +119,8 @@ namespace hookftw
     {
         #ifdef _WIN32
         DWORD old;
-        if (!VirtualProtect(address, size, (DWORD)protection, &old))
+        // VirtualProtect requires non-const pointer, but doesn't actually modify the memory at the pointer itself
+        if (!VirtualProtect(const_cast<int8_t*>(address), size, (DWORD)protection, &old))
         {
             return false;
         }
