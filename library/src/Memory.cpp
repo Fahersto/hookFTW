@@ -138,7 +138,6 @@ namespace hookftw
 
         if (mprotect((void*)addressPageBoundary, totalSize, (int)protection))
         {
-            int errsv = errno;
             return false;
         }
         #endif
