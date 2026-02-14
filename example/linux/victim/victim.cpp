@@ -25,24 +25,8 @@ int CalculateInput(int arg1)
 
 int main()
 {
-	printf("Clean: %d\n", CalculateInput(1));
-
-	/*
-	hookftw::Detour detour;
-	detour.Hook((int8_t*)CalculateInput, (int8_t*)hkInput);
-	int calculated = CalculateInput();
-	printf("Detour hooked: %d\n", CalculateInput());
-	detour.Unhook();
-	printf("Detour unhooked: %d\n", CalculateInput());
-	*/
-	hookftw::MidfunctionHook midfunctionHook;
-	midfunctionHook.Hook((int8_t*)CalculateInput, [](hookftw::context* ctx) {
-		ctx->PrintRegister();
-		ctx->rdi = 10;
-		ctx->CallOriginal<int,int>(1);
-	} );
-	printf("Midfunction hooked: %d\n", CalculateInput(1));
-	midfunctionHook.Unhook();
-	printf("Midfunction unhooked: %d\n", CalculateInput(1));
+	int result = 4711;
+	result = CalculateInput(1);
+	printf("Clean: %d\n", result);
 	return 0;
 }

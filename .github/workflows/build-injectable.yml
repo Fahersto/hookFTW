@@ -1,0 +1,125 @@
+name: Build Injectable Library
+
+on:
+  workflow_dispatch:
+    inputs:
+      hook_address_offset:
+        description: 'Hook address offset from base in hexadecimal (e.g., 0x1234)'
+        required: false
+        type: string
+        default: ''
+      function_name:
+        description: 'Function name to hook (alternative to hook_address_offset)'
+        required: false
+        type: string
+        default: ''
+      skip_original_function:
+        description: 'Skip original function call'
+        required: true
+        type: boolean
+        default: false
+      custom_code:
+        description: 'Custom C++ code to execute inside the hook'
+        required: false
+        type: string
+        default: ''
+
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install CMake
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential
+
+      - name: Verify CMake Installation
+        run: cmake --version
+
+      - name: Update function name in main.cpp
+        if: ${{ github.event.inputs.function_name != '' }}
+        run: |
+          sed -i 's/std::string compileFlag_functionName = "";/std::string compileFlag_functionName = "${{ github.event.inputs.function_name }}";/' injectable/main.cpp
+
+      - name: Update hook address offset in main.cpp
+        if: ${{ github.event.inputs.hook_address_offset != '' }}
+        run: |
+          sed -i 's/uintptr_t compileFlag_hookAddressOffset = [^;]*;/uintptr_t compileFlag_hookAddressOffset = ${{ github.event.inputs.hook_address_offset }};/' injectable/main.cpp
+
+      - name: Update skip_original_function flag in main.cpp
+        run: |
+          sed -i 's/bool compileFlag_skipOriginalFunction = [^;]*;/bool compileFlag_skipOriginalFunction = ${{ github.event.inputs.skip_original_function || 'false' }};/' injectable/main.cpp
+
+      # NEW STEP: Inject custom code into the hook lambda
+      - name: Inject custom hook code
+        if: ${{ github.event.inputs.custom_code != '' }}
+        run: |
+          # Write custom code to temp file
+          cat > /tmp/custom_code.cpp << 'EOF'
+          ${{ github.event.inputs.custom_code }}
+          EOF
+          
+          # Use Python to properly inject the code with correct indentation
+          python3 << 'PYTHON_EOF'
+          import re
+          
+          # Read the custom code
+          with open('/tmp/custom_code.cpp', 'r') as f:
+              custom_code = f.read()
+          
+          # Read the main.cpp file
+          with open('injectable/main.cpp', 'r') as f:
+              main_content = f.read()
+          
+          # Add proper indentation (12 spaces to match the lambda body)
+          indented_code = '\n'.join('            ' + line if line.strip() else '' 
+                                     for line in custom_code.splitlines())
+          
+          # Replace the placeholder
+          main_content = main_content.replace('// __CUSTOM_CODE_PLACEHOLDER__', indented_code)
+          
+          # Write back
+          with open('injectable/main.cpp', 'w') as f:
+              f.write(main_content)
+          PYTHON_EOF
+# Enable for debugging
+#      - name: Upload Custom Code Artifact
+#        if: ${{ always() && github.event.inputs.custom_code != '' }}
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: custom-code-${{ github.event.inputs.function_name || github.event.inputs.hook_address_offset || 'default' }}
+#          path: /tmp/custom_code.cpp
+#          if-no-files-found: warn
+#
+#      - name: Upload Modified main.cpp Before Compilation
+#        if: always()
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: modified-main-cpp-${{ github.event.inputs.function_name || github.event.inputs.hook_address_offset || 'default' }}
+#          path: injectable/main.cpp
+#          if-no-files-found: warn
+
+      - name: Configure CMake
+        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+      - name: Build Injectable Library
+        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target injectable -j$(nproc)
+
+      - name: Upload Injectable Library
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libinjectable-${{ github.event.inputs.function_name || github.event.inputs.hook_address_offset || 'default' }}-skip${{ github.event.inputs.skip_original_function || 'false' }}
+          path: build/injectable/libinjectable.so
+          if-no-files-found: error

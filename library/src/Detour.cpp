@@ -103,10 +103,9 @@ namespace hookftw
 		else
 		{
 			// jmp rel32 is enough
-			int64_t target1 = (int64_t)targetAddress - (int64_t)sourceAddress;
-			int32_t target2 = (int32_t)((int64_t)targetAddress - (int64_t)sourceAddress);
+			int32_t offset = (int32_t)((int64_t)targetAddress - (int64_t)sourceAddress - 5);
 			sourceAddress[0] = 0xE9;																//JMP rel32
-			*(int32_t*)(&sourceAddress[1]) = (int32_t)((int64_t)targetAddress - (int64_t)sourceAddress - 5);
+			*(int32_t*)(&sourceAddress[1]) = offset;
 		}
 
 		// NOP left over bytes
@@ -115,14 +114,29 @@ namespace hookftw
 			sourceAddress[i] = 0x90;
 		}
 
+		// flush instruction cache and add memory barriers
+		#ifdef _WIN32
+		//FlushInstructionCache(GetModuleHandle(NULL), sourceAddress, hookLength_);
+		#elif __linux
+		// Flush data cache
+		__builtin___clear_cache((char*)sourceAddress, (char*)sourceAddress + hookLength_);
+		// Add a serializing instruction to ensure all previous writes are visible
+		asm volatile("mfence");
+		#endif
+
 		// restore page protection
 		Memory::ModifyPageProtection(sourceAddress, hookLength_, oldPageProtection);
 
 		// make trampoline executable
 		Memory::ModifyPageProtection(trampoline_, relocatedBytes.size() + stubJumpBackLength, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
 
-		// flush instruction cache for new executable region to ensure cache coherency
+		// flush instruction cache for trampoline
+		#ifdef _WIN32
 		//FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
+		#elif __linux
+		__builtin___clear_cache((char*)trampoline_, (char*)trampoline_ + relocatedBytes.size() + stubJumpBackLength);
+		asm volatile("mfence");
+		#endif
 
 		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
@@ -199,15 +213,20 @@ namespace hookftw
 		}
 
 		// restore page protection
-		Memory::ModifyPageProtection(sourceAddress, hookLength_, oldProtection);
-		//VirtualProtect(sourceAddress, hookLength_, pageProtection, &pageProtection);
+		Memory::ModifyPageProtection(sourceAddress_, hookLength_, oldProtection);
+		//VirtualProtect(sourceAddress_, hookLength_, pageProtection, &pageProtection);
 
 		// make trampoline executable
-		Memory::ModifyPageProtection(sourceAddress, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
-		//VirtualProtect(trampoline_, relocatedBytes.size() + stubJumpBackLength, PAGE_EXECUTE_READWRITE, &pageProtection);
+		Memory::ModifyPageProtection(trampoline_, relocatedBytes.size() + stubJumpBackLength, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
+		//VirtualFree(trampoline_, 0, MEM_RELEASE);
 
 		// flush instruction cache for new executable region to ensure cache coherency
+		#ifdef _WIN32
 		//FlushInstructionCache(GetModuleHandle(NULL), trampoline_, relocatedBytes.size() + stubJumpBackLength);
+		#elif __linux
+		__builtin___clear_cache((char*)sourceAddress_, (char*)sourceAddress_ + hookLength_);
+		__builtin___clear_cache((char*)trampoline_, (char*)trampoline_ + relocatedBytes.size() + stubJumpBackLength);
+		#endif
 
 		// return the address of the trampoline so we can call it to invoke the original function
 		return trampoline_;
@@ -222,6 +241,12 @@ namespace hookftw
 	 */
 	void Detour::Unhook()
 	{
+		// Skip if there's nothing to unhook
+		if (sourceAddress_ == nullptr || originalBytes_ == nullptr || trampoline_ == nullptr)
+		{
+			return;
+		}
+
 		// make page writeable
 		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress_);
 		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
@@ -237,10 +262,16 @@ namespace hookftw
 
 		// clean up allocated memory
 		delete[] originalBytes_;
+		originalBytes_ = nullptr;
 
 		// free trampolin memory page
 		Memory::FreePage(trampoline_, 0);
 		//VirtualFree(trampoline_, 0, MEM_RELEASE);
+
+		// reset member variables
+		sourceAddress_ = nullptr;
+		trampoline_ = nullptr;
+		hookLength_ = 0;
 	}
 
 }

@@ -42,8 +42,6 @@ namespace hookftw
 			return nullptr;;
 		}
 
-		printf("[Info] - Trampoline - Bounds of relative addresses accessed [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
-
 		// check if there was rip-relative memory access
 		if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
 		{
@@ -84,7 +82,7 @@ namespace hookftw
 
 			if (!trampoline)
 			{
-				printf("[Error] - Trampoline - Failed to allocate trampoline within bounds [%llx, %llx]\n", lowestRelativeAddress, hightestRelativeAddress);
+				printf("[Error] - Trampoline - Failed to allocate trampoline within bounds [%lx, %lx]\n", lowestRelativeAddress, hightestRelativeAddress);
 				return nullptr;
 			}
 
@@ -130,7 +128,6 @@ namespace hookftw
 			lowestAddressReachableByFiveBytesJump = 0;
 		}
 
-		printf("[Info] - Trampoline - Attempting to allocate trampoline within +-2GB range of %p\n", sourceAddress);
 		int8_t* trampoline = nullptr;
 		int64_t targetAddress = 0;
 		while (!trampoline)
@@ -175,7 +172,6 @@ namespace hookftw
 				return nullptr;
 			}
 		}
-		printf("[Info] - Trampoline - Allocated trampoline at %p (using %lld attempts)\n", trampoline, allocationAttempts);
 		*restrictedRelocation = false;
 		return trampoline;
 	}
@@ -217,7 +213,6 @@ namespace hookftw
 			initialTargetAddress = highestAddressReachableByFiveBytesJump;
 		}
 
-		printf("[Info] - Trampoline - Attempting to allocate trampoline within +-2GB range of [%llx, %llx] with a trampoline maximum size of %d\n", lowestRipRelativeMemoryAccess, highestRipRelativeMemoryAddress, trampolineLengthUpperBound);
 		int8_t* trampoline = nullptr;
 		while (!trampoline)
 		{
@@ -261,7 +256,7 @@ namespace hookftw
 				return nullptr;
 			}
 		}
-		printf("[Info] - Trampoline - Allocated trampoline at %p (using %lld attempts)\n", trampoline, allocationAttempts);
+		printf("[Info] - Trampoline - Allocated trampoline at %p (using %ld attempts)\n", trampoline, allocationAttempts);
 		*restrictedRelocation = false;
 		return trampoline;
 	}

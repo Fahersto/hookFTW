@@ -3,14 +3,16 @@
 #include <iostream>
 
 #ifdef _WIN32
+#include <Windows.h>
 #elif __linux
-#include <unistd.h>
 #include <dlfcn.h>
- #endif
+#include <unistd.h>
+#include <errno.h>
+#endif
 
 namespace hookftw
 {
-    int8_t* Memory::FindFunctionInModule(std::string moduleName, std::string functionName)
+    int8_t* Memory::FindFunctionInModule(const std::string& moduleName, const std::string& functionName)
     {
         #ifdef _WIN32
         HMODULE moduleHandle = GetModuleHandleA(moduleName.c_str());
@@ -49,39 +51,86 @@ namespace hookftw
         {
             return false;
         }
-        #endif   
+        #endif
+        return true;
     }
 
-    MemoryPageProtection Memory::QueryPageProtection(int8_t* address)
+    MemoryPageProtection Memory::QueryPageProtection(const int8_t* address)
     {
         #ifdef _WIN32
-                /*    
-        SIZE_T VirtualQuery(
-        [in, optional] LPCVOID                   lpAddress,
-        [out]          PMEMORY_BASIC_INFORMATION lpBuffer,
-        [in]           SIZE_T                    dwLength
-        );
-        */
-        printf("Warning - QueryPageProtection not implemented¡\n");
+        MEMORY_BASIC_INFORMATION mbi;
+        if (VirtualQuery(address, &mbi, sizeof(mbi)) == 0) {
+            // Query failed, return a safe default
+            return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
+        }
+
+        // Map Windows protection flags to our enum
+        switch (mbi.Protect & 0xFF) { // Mask out PAGE_GUARD, PAGE_NOCACHE, etc.
+            case PAGE_READONLY:
+                return MemoryPageProtection::HOOKFTW_PAGE_READONLY;
+            case PAGE_READWRITE:
+            case PAGE_WRITECOPY:
+                return MemoryPageProtection::HOOKFTW_PAGE_READWRITE;
+            case PAGE_EXECUTE:
+                return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE;
+            case PAGE_EXECUTE_READ:
+                return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
+            case PAGE_EXECUTE_READWRITE:
+            case PAGE_EXECUTE_WRITECOPY:
+                return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE;
+            default:
+                return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
+        }
         #elif __linux
-        printf("Warning - QueryPageProtection not implemented¡\n");
+        FILE* fp = fopen("/proc/self/maps", "r");
+        if (!fp) {
+            perror("fopen /proc/self/maps");
+            return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
+        }
+
+        char line[256];
+        uintptr_t addr_start, addr_end;
+        char perms[5];
+        MemoryPageProtection protection = MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
+
+        while (fgets(line, sizeof(line), fp)) {
+            if (sscanf(line, "%lx-%lx %4s", &addr_start, &addr_end, perms) == 3) {
+                if ((uintptr_t)address >= addr_start && (uintptr_t)address < addr_end) {
+                    if (perms[0] == 'r' && perms[1] == 'w' && perms[2] == 'x') {
+                        protection = MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE;
+                    } else if (perms[0] == 'r' && perms[1] == 'w') {
+                        protection = MemoryPageProtection::HOOKFTW_PAGE_READWRITE;
+                    } else if (perms[0] == 'r' && perms[2] == 'x') {
+                        protection = MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
+                    } else if (perms[0] == 'r') {
+                        protection = MemoryPageProtection::HOOKFTW_PAGE_READONLY;
+                    }
+                     // Handle other cases if necessary
+                    break;
+                }
+            }
+        }
+        fclose(fp);
+        return protection;
         #endif
-
-        return MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READ;
-
     }
 
-    bool Memory::ModifyPageProtection(int8_t* address, int32_t size, MemoryPageProtection protection)
+    bool Memory::ModifyPageProtection(const int8_t* address, int32_t size, MemoryPageProtection protection)
     {
         #ifdef _WIN32
         DWORD old;
-        if (!VirtualProtect(address, size, (DWORD)protection, &old))
+        // VirtualProtect requires non-const pointer, but doesn't actually modify the memory at the pointer itself
+        if (!VirtualProtect(const_cast<int8_t*>(address), size, (DWORD)protection, &old))
         {
             return false;
         }
         #elif __linux
-        uint64_t addressPageBoundary = (uint64_t)address & ~(sysconf(_SC_PAGE_SIZE) - 1);
-        if (mprotect((int8_t*)addressPageBoundary, size, (int)protection))
+        uintptr_t addressPageBoundary = (uintptr_t)address & ~(sysconf(_SC_PAGE_SIZE) - 1);
+        uintptr_t addressEnd = (uintptr_t)address + size;
+        uintptr_t addressEndPageBoundary = (addressEnd + sysconf(_SC_PAGE_SIZE) - 1) & ~(sysconf(_SC_PAGE_SIZE) - 1);
+        size_t totalSize = addressEndPageBoundary - addressPageBoundary;
+
+        if (mprotect((void*)addressPageBoundary, totalSize, (int)protection))
         {
             int errsv = errno;
             return false;

@@ -184,8 +184,8 @@ namespace hookftw
 			0x9D														//popfq
 		};
 
-		// used to the controll flow after the hook can be changed (for example skip oroginal call)
-		int8_t controllFlowStub[controlFlowStubLength] = {
+		// used to the control flow after the hook can be changed (for example skip oroginal call)
+		uint8_t controllFlowStub[controlFlowStubLength] = {
 			0x48, 0xA3, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs ds:0x1122334455667788,rax
 			0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	//movabs rax,0x1122334455667788
 			0xFF, 0x30,													//push QWORD PTR [rax]
@@ -221,7 +221,7 @@ namespace hookftw
 		// in x64bit we always do an absolute 8 byte jump. This way the trampoline does not need to be in +-2bg range.
 		// in such cases relocation of rip-relative instructions is not supported
 		const int stubJumpBackLength = 14;
-		int8_t jmpBackStub[stubJumpBackLength] = {
+		uint8_t jmpBackStub[stubJumpBackLength] = {
 			0xff, 0x25, 0x0, 0x0, 0x0,0x0,					//JMP[rip + 0]
 			0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	//absolute address of jump
 		};
@@ -243,7 +243,7 @@ namespace hookftw
 		if (restrictedRelocation_)
 		{
 			const int stubJumpToTrampolineLength = 14;
-			int8_t jmpToTrampolineStub[stubJumpToTrampolineLength] = {
+			uint8_t jmpToTrampolineStub[stubJumpToTrampolineLength] = {
 				0xff, 0x25, 0x0, 0x0, 0x0,0x0,					//JMP[rip + 0]
 				0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88	//absolute address of jump
 			};
@@ -429,6 +429,9 @@ namespace hookftw
 			sourceAddress[i] = 0x90;
 		}
 
+		// flush instruction cache for original code
+		FlushInstructionCache(GetModuleHandle(NULL), sourceAddress, hookLength);
+
 		// restore page protection of original code
 		VirtualProtect(sourceAddress, hookLength, pageProtection, &pageProtection);
 	}
@@ -511,6 +514,12 @@ namespace hookftw
 	 */
 	void MidfunctionHook::Unhook()
 	{
+		// Skip if there's nothing to unhook
+		if (sourceAddress_ == nullptr || originalBytes_ == nullptr || trampoline_ == nullptr)
+		{
+			return;
+		}
+
 		// make page writeable
 		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress_);
 		Memory::ModifyPageProtection(sourceAddress_, hookLength_, MemoryPageProtection::HOOKFTW_PAGE_EXECUTE_READWRITE);
@@ -523,9 +532,17 @@ namespace hookftw
 
 		// clean up allocated memory
 		delete[] originalBytes_;
+		originalBytes_ = nullptr;
 
 		// free trampolin memory page
 		Memory::FreePage(trampoline_, Memory::GetPageSize());
+
+		// reset member variables
+		sourceAddress_ = nullptr;
+		trampoline_ = nullptr;
+		addressToCallFunctionWithoutHook_ = nullptr;
+		returnAddressFromTrampoline_ = 0;
+		hookLength_ = 0;
 	}
 
 	/**
@@ -547,7 +564,7 @@ namespace hookftw
 	{
 		// this is the location of the RET instruction at the end of the trampoline_
 		// this will cause the RET at the end of the trampoline (but before relocated instructions) to return to itself.
-		// the next execution of the same RET instruciton will then take the return address pushed on the stack by the caller of the hooked funciton, therefore skipping the call.
+		// the next execution of the same RET instruction will then take the return address pushed on the stack by the caller of the hooked function, therefore skipping the call.
 		returnAddressFromTrampoline_ = (int64_t)addressOfRET;
 	}
 
@@ -569,13 +586,9 @@ namespace hookftw
 		// address of RET is the last instruction in the control flow stub
 		addressOfRET = trampoline_ + stubLength + controlFlowStubLength - 1;
 
-		// compensates for all the changes to the stack before the proxy function is called
-		// this way we get the rsp value time 
-		const int rspCompenstaion = 400;
-
-		const int thisAddress = 195;
-		const int saveRspAddress = 209;
-		const int restoreRspAddress = 243;
+		const int thisOffset = 195;
+		const int saveRspOffset = 209;
+		const int restoreRspOffset = 243;
 
 		int bytesRequiredForPlacingHook = 0;
 
@@ -601,7 +614,7 @@ namespace hookftw
 		// 5. restore all registers
 		// 6. jump back to orignal function
 		uint8_t stub[stubLength] = {
-			0x9C,														//pushfq	
+			0x9C,														//pushfq
 			0x48, 0x83, 0xEC, 0x10,										//sub    rsp,0x10
 			0xF3, 0x44, 0x0F, 0x7F, 0x3C, 0x24,							//movdqu XMMWORD PTR [rsp],xmm15
 			0x48, 0x83, 0xEC, 0x10,										//sub    rsp,0x10
@@ -654,9 +667,9 @@ namespace hookftw
 			0x48, 0x83, 0xEC, 0x08,										//sub    rsp,0x8
 			0x48, 0x89, 0xE0,											//mov    rax,rsp
 			0x48, 0x05, 0x88, 0x01, 0x00, 0x00,							//add    rax,0x188
-			0x48, 0x89, 0x04, 0x24,										//mov    QWORD PTR [rsp],rax	
+			0x48, 0x89, 0x04, 0x24,										//mov    QWORD PTR [rsp],rax
 
-			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this 
+			0x48, 0xB8, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,	//mov	 rax, this
 			0x50,														//push	 rax
 
 			0x48, 0x89, 0xE7,											//mov    rdi, rsp					//make first argument point at the stack
@@ -766,10 +779,13 @@ namespace hookftw
 		memcpy(&trampoline_[stubLength + controlFlowStubLength + relocatedBytes.size()], jmpBackStub, stubJumpBackLength);
 
 		// insert address of proxy function to call instruction
-		*(int64_t*)&trampoline_[thisAddress] = (int64_t)this;
+		*(int64_t*)&trampoline_[thisOffset] = (int64_t)this;
 		*(int64_t*)&trampoline_[proxyFunctionAddressIndex] = (int64_t)proxy;
-		*(int64_t*)&trampoline_[saveRspAddress] = (int64_t)&originalRsp_;
-		*(int64_t*)&trampoline_[restoreRspAddress] = (int64_t)&originalRsp_;
+		*(int64_t*)&trampoline_[saveRspOffset] = (int64_t)&originalRsp_;
+		*(int64_t*)&trampoline_[restoreRspOffset] = (int64_t)&originalRsp_;
+
+		// flush instruction cache for new executable region to ensure cache coherency
+		__builtin___clear_cache((char*)trampoline_, (char*)trampoline_ + stubLength + controlFlowStubLength + relocatedBytes.size() + stubJumpBackLength);
 
 		// make page of original code writeable
 		MemoryPageProtection oldProtection = Memory::QueryPageProtection(sourceAddress);
@@ -797,6 +813,8 @@ namespace hookftw
 		{
 			sourceAddress[i] = 0x90;
 		}
+
+		__builtin___clear_cache((char*)sourceAddress, (char*)sourceAddress + hookLength);
 
 		// restore page protection of original code
 		Memory::ModifyPageProtection(sourceAddress, hookLength, oldProtection);
@@ -871,7 +889,7 @@ namespace hookftw
 	/**
 	 * \brief Restores the original function by copying back the original bytes of the hooked function that where overwritten by placing the hook.
 	 *
-	 *  \warning It is the users responsiblity to ensure that code within the trampoline is not going to be executed after unhooking.
+	 *  \warning It is the users responsibility to ensure that code within the trampoline is not going to be executed after unhooking.
 	 */
 	void MidfunctionHook::Unhook()
 	{
@@ -882,14 +900,24 @@ namespace hookftw
 		// copy back original bytes
 		memcpy(sourceAddress_, originalBytes_, hookLength_);
 
+		__builtin___clear_cache((char*)sourceAddress_, (char*)sourceAddress_ + hookLength_);
+
 		// restore page protection
 		Memory::ModifyPageProtection(sourceAddress_, hookLength_, oldProtection);
 
 		// clean up allocated memory
 		delete[] originalBytes_;
+		originalBytes_ = nullptr;
 
-		// free trampolin memory page
+		// free trampoline memory page
 		Memory::FreePage(trampoline_, Memory::GetPageSize());
+
+		// reset member variables
+		sourceAddress_ = nullptr;
+		trampoline_ = nullptr;
+		addressToCallFunctionWithoutHook_ = nullptr;
+		returnAddressFromTrampoline_ = 0;
+		hookLength_ = 0;
 	}
 
 	/**
@@ -903,15 +931,15 @@ namespace hookftw
 	/**
 	 * \brief Skips the invocation of the original call of the hooked function. 
 	 * 
-	 * This is done by executing a RET instruction to return the the hooked functions caller.
+	 * This is done by executing a RET instruction to return to the hooked functions caller.
 	 * 
-	 *  \warning Only to be called if the beginning of a function was hooked. Otherwhise results in undefined behavior.
+	 *  \warning Only to be called if the beginning of a function was hooked. Otherwise results in undefined behavior.
 	 */
 	void MidfunctionHook::SkipOriginalFunction()
 	{
 		// this is the location of the RET instruction at the end of the trampoline_
 		// this will cause the RET at the end of the trampoline (but before relocated instructions) to return to itself.
-		// the next execution of the same RET instruciton will then take the return address pushed on the stack by the caller of the hooked funciton, therefore skipping the call.
+		// the next execution of the same RET instruction will then take the return address pushed on the stack by the caller of the hooked function, therefore skipping the call.
 		returnAddressFromTrampoline_ = (int64_t)addressOfRET;
 	}
 	#endif

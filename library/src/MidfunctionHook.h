@@ -2,11 +2,9 @@
 
 #include <cstdint>
 #include <cstdio>
-#include <functional>
 #include <vector>
 #include <xmmintrin.h>
-
-#include "Registers.h"
+#include <inttypes.h>
 
 namespace hookftw
 {
@@ -132,10 +130,10 @@ namespace hookftw
 		/**
 		 * \brief Prints the values of all registers
 		 */
-		void PrintRegister()
+		void PrintRegister() const
 		{
-			printf("register:\n\trsp %llx\n\trax %llx\n\trcx %llx\n\trdx %llx\n\trbx %llx\n\trbp %llx\n\trsi %llx\n\trdi %llx\n\tr8 %llx\n\tr9 %llx\n\tr10 %llx\n\tr11 %llx\n\tr12 %llx\n\tr13 %llx\n\tr14 %llx\n\tr15 %llx\n\trflags %llx\n",
-				rsp, rax, rcx, rdx, rbx, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15, rflags);
+			printf("register:\n\trsp 0x%016" PRIx64 "\n\trax 0x%016" PRIx64 "\n\trcx 0x%016" PRIx64 "\n\trdx 0x%016" PRIx64 "\n\trbx 0x%016" PRIx64 "\n\trbp 0x%016" PRIx64 "\n\trsi 0x%016" PRIx64 "\n\trdi 0x%016" PRIx64 "\n\tr8 0x%016" PRIx64 "\n\tr9 0x%016" PRIx64 "\n\tr10 0x%016" PRIx64 "\n\tr11 0x%016" PRIx64 "\n\tr12 0x%016" PRIx64 "\n\tr13 0x%016" PRIx64 "\n\tr14 0x%016" PRIx64 "\n\tr15 0x%016" PRIx64 "\n\trflags 0x%016" PRIx64 "\n",
+				static_cast<uint64_t>(rsp), static_cast<uint64_t>(rax), static_cast<uint64_t>(rcx), static_cast<uint64_t>(rdx), static_cast<uint64_t>(rbx), static_cast<uint64_t>(rbp), static_cast<uint64_t>(rsi), static_cast<uint64_t>(rdi), static_cast<uint64_t>(r8), static_cast<uint64_t>(r9), static_cast<uint64_t>(r10), static_cast<uint64_t>(r11), static_cast<uint64_t>(r12), static_cast<uint64_t>(r13), static_cast<uint64_t>(r14), static_cast<uint64_t>(r15), static_cast<uint64_t>(rflags));
 		}
 
 		/**
@@ -313,21 +311,21 @@ namespace hookftw
 		// location where hook is placed
 		int8_t* sourceAddress_ = nullptr;
 
-		// contrains overwritten instructions
+		// contains overwritten instructions
 		int8_t* trampoline_ = nullptr;
 
 		// contains the address after the trampoline_ stub. starts with the relocated origin instruction.
 		int8_t* addressToCallFunctionWithoutHook_ = nullptr;
 
 		// contains the address to which the trampoline_ returns. This can be used to skip the original call for example.
-		int64_t returnAddressFromTrampoline_ = NULL;
+		int64_t returnAddressFromTrampoline_ = 0;
 
 		// number of bytes to overwrite (don't cut instructions in half)
-		int hookLength_ = NULL;
+		int hookLength_ = 0;
 
 		// rax is used to change the location to jump back
-		int64_t savedRax_ = NULL;
-		int64_t originalRsp_ = NULL;
+		int64_t savedRax_ = 0;
+		int64_t originalRsp_ = 0;
 
 		int8_t* addressOfRET = nullptr;
 
@@ -357,7 +355,7 @@ namespace hookftw
 	  *
 	  * \note Inside the hook any register can be read/written by using this context.
 	  *
-	  * \warning Values of registers are at the time of hooking. The only expection to this is RSP which can be calculated by \GetRspAtHookAddress.
+	  * \warning Values of registers are at the time of hooking. The only exception to this is RSP which can be calculated by \GetRspAtHookAddress.
 	  */
 	struct context
 	{
@@ -403,10 +401,10 @@ namespace hookftw
 		/**
 		 * \brief Prints the values of all registers
 		 */
-		void PrintRegister()
+		void PrintRegister() const
 		{
-			printf("register:\n\trsp %llx\n\trax %llx\n\trcx %llx\n\trdx %llx\n\trbx %llx\n\trbp %llx\n\trsi %llx\n\trdi %llx\n\tr8 %llx\n\tr9 %llx\n\tr10 %llx\n\tr11 %llx\n\tr12 %llx\n\tr13 %llx\n\tr14 %llx\n\tr15 %llx\n\trflags %llx\n",
-				rsp, rax, rcx, rdx, rbx, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15, rflags);
+			printf("register:\n\trsp 0x%016" PRIx64 "\n\trax 0x%016" PRIx64 "\n\trcx 0x%016" PRIx64 "\n\trdx 0x%016" PRIx64 "\n\trbx 0x%016" PRIx64 "\n\trbp 0x%016" PRIx64 "\n\trsi 0x%016" PRIx64 "\n\trdi 0x%016" PRIx64 "\n\tr8 0x%016" PRIx64 "\n\tr9 0x%016" PRIx64 "\n\tr10 0x%016" PRIx64 "\n\tr11 0x%016" PRIx64 "\n\tr12 0x%016" PRIx64 "\n\tr13 0x%016" PRIx64 "\n\tr14 0x%016" PRIx64 "\n\tr15 0x%016" PRIx64 "\n\trflags 0x%016" PRIx64 "\n",
+				static_cast<uint64_t>(rsp), static_cast<uint64_t>(rax), static_cast<uint64_t>(rcx), static_cast<uint64_t>(rdx), static_cast<uint64_t>(rbx), static_cast<uint64_t>(rbp), static_cast<uint64_t>(rsi), static_cast<uint64_t>(rdi), static_cast<uint64_t>(r8), static_cast<uint64_t>(r9), static_cast<uint64_t>(r10), static_cast<uint64_t>(r11), static_cast<uint64_t>(r12), static_cast<uint64_t>(r13), static_cast<uint64_t>(r14), static_cast<uint64_t>(r15), static_cast<uint64_t>(rflags));
 		}
 
 		/**
@@ -414,36 +412,35 @@ namespace hookftw
 		 *
 		 * \warning Changing the control flow of a function is very likely to produce crashes if not done with caution.
 		 */
-		void ChangeControllFlow(int64_t addressToReturnToAfterHook)
+		void ChangeControlFlow(int64_t addressToReturnToAfterHook) const
 		{
 			hook->ChangeReturn(addressToReturnToAfterHook);
 		}
 
 		/**
-		 * \brief Skips the call of the hooked function but executing a RET.
+		 * \brief Skips the call of the hooked function by executing a RET.
 		 *
-		 \warning Only to be called if the beginning of a function was hooked. Otherwhise results in undefined behavior.
+		 \warning Only to be called if the beginning of a function was hooked. Otherwise, results in undefined behavior.
 		 */
-		void SkipOriginalFunction()
+		void SkipOriginalFunction() const
 		{
 			hook->SkipOriginalFunction();
 		}
 
 		/**
-		 * \brief Calls the original (unhooked) version of the function. Allows to call the hooked function without recursivly calling the hook again.
+		 * \brief Calls the original (unhooked) version of the function. Allows to call the hooked function without recursively calling the hook again.
 		 *
 		 * @return result of the hooked function when invoked with the specified parameters.
 		 */
 		template<class RET, class...PARAMS>
 		RET CallOriginal(PARAMS... parameters)
 		{
-			using defaultFunc = RET(*)(PARAMS...);
-	
 			int8_t* originalFunction = hook->GetCallableVersionOfOriginal();
-
-			return ((defaultFunc)originalFunction)(parameters...);			
+			return reinterpret_cast<RET(*)(PARAMS...)>(originalFunction)(parameters...);
 		}
 
 	};
 #endif
 }
+
+
