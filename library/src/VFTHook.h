@@ -9,13 +9,13 @@ namespace hookftw
 	 * \brief Creates and manages hooks on the virtual function tables.
 	 *
 	 * While this hooking method requires deeper knowledge of the target function its main benefit is that only .data is written to hook. Therefore checksums of the .code section of the target program don't break.
-	 * Also there is no requirement to allocate additional memory pages (VirtualAlloc) or change page protections (VirtualProtect).
+	 * Also, there is no requirement to allocate additional memory pages (VirtualAlloc) or change page protections (VirtualProtect).
 	 */
 	class VFTHook
 	{
 	private:
 		int8_t** vftable_;
-		std::map<int, int8_t*> hookedfuncs_;
+		std::map<int, int8_t*> hookedFunctions_;
 
 	public:
 		VFTHook(int8_t** vftable);
@@ -24,5 +24,16 @@ namespace hookftw
 
 		bool Unhook(int index);
 		void Unhook();
+
+		/**
+		 * \brief Prints all function pointers in the virtual function table.
+		 *
+		 * This is a best-effort function that safely scans the VFT and prints
+		 * all valid function pointers. It will never crash even if it encounters
+		 * invalid memory or corrupted VFT entries.
+		 *
+		 * @param maxEntries Maximum number of entries to scan (default: 50)
+		 */
+		void PrintVFT(int maxEntries = 50) const;
 	};
 }

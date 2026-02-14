@@ -20,6 +20,7 @@ if (UNIX)
     file(GLOB_RECURSE LIBRARY_SOURCES LIST_DIRECTORIES true 
         src/Decoder.h src/Decoder.cpp
         src/Detour.h src/Detour.cpp
+        src/DbgSymbols.h src/DbgSymbols.cpp
         src/Memory.h src/Memory.cpp
         src/MidfunctionHook.h src/MidfunctionHook.cpp
         src/Registers.h
@@ -32,3 +33,11 @@ endif (UNIX)
 # Link our project executable against Zydis.
 target_link_libraries(hookftw PRIVATE Zydis)
 target_compile_features(hookftw PRIVATE cxx_std_17)
+
+if(WIN32)
+    target_link_libraries(hookftw PRIVATE dbghelp)
+endif()
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(hookftw PRIVATE dl)
+endif()

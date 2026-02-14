@@ -27,7 +27,7 @@ if (UNIX)
      file(GLOB_RECURSE VICTIM_SOURCES LIST_DIRECTORIES true linux/victim/*.h linux/victim/*.cpp)
      # Add victim.exe
      add_executable(victim ${VICTIM_SOURCES})
-    
+
     # Add header files of hookftw.lib to search path (needed by example.so)
     include_directories(../library/src)
     

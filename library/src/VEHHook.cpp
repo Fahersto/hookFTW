@@ -1,5 +1,6 @@
 #include "VEHHook.h"
 
+#ifdef _WIN32
 #include <cstdio>
 #include <Windows.h>
 
@@ -141,3 +142,5 @@ namespace hookftw
 	}
 
 }
+
+#endif

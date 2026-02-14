@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #include <Windows.h>
 #include <cstdint>
 #include <map>
@@ -29,3 +30,5 @@ namespace hookftw
 		void Unhook();
 	};
 }
+
+#endif

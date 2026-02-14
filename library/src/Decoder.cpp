@@ -72,7 +72,7 @@ namespace hookftw
 	 */
 	bool IsRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction)
 	{
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
 		// For reference see: https://software.intel.com/content/www/us/en/develop/download/intel-64-and-ia-32-architectures-sdm-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html
 		// Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (x64 only)
 		return instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM &&
@@ -86,6 +86,9 @@ namespace hookftw
 	/**
 	 *  \brief Relocates a call instruction by calculating its absolute target address
 	 *
+	 *  Instead of using CALL which pushes a return address inside the trampoline, we use PUSH + JMP.
+	 *  The pushed return address points to the instruction AFTER the original call, making unhooking safe.
+	 *
 	 *	@param instruction call instruction to be relocated
 	 *	@param instructionAddress original address of the call instruction
 	 *	@param relocatedbytes relocated bytes
@@ -97,17 +100,24 @@ namespace hookftw
 		{
 			if (instruction.raw.modrm.mod == 0 && instruction.raw.modrm.rm == 5)
 			{
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
 				// disp32 see ModR/M table (intel manual)
 				ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
 
-				// we can use rax here as it has not to be preserved in function calls
-				const int relocatedCallInstructionsLength = 12;
+				// Calculate the return address (instruction after the original call)
+				int8_t* returnAddress = instructionAddress + instruction.length;
+
+				// Use push + jmp instead of call to make unhooking safe
+				// The return address points to the original code, not the trampoline
+				const int relocatedCallInstructionsLength = 23;
 				uint8_t relocatedCallInstructions[relocatedCallInstructionsLength] = {
-					0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,			//movabs rax, 0x1122334455667788. 
-					0xFF, 0x10															//call   [rax]
+					0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	// movabs rax, <return_address>
+					0x50,														// push rax
+					0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	// movabs rax, <target>
+					0xFF, 0xE0													// jmp rax
 				};
-				*(uint64_t*)&relocatedCallInstructions[2] = originalJumpTarget;
+				*(uint64_t*)&relocatedCallInstructions[2] = (uint64_t)returnAddress;
+				*(uint64_t*)&relocatedCallInstructions[13] = originalJumpTarget;
 				relocatedbytes.insert(relocatedbytes.end(), relocatedCallInstructions, relocatedCallInstructions + relocatedCallInstructionsLength);
 #else
 				// just copy original call instruction. There is no rip-relative addressing in 32 bit. The displacement is relative to 0.
@@ -124,16 +134,23 @@ namespace hookftw
 		{
 			// e8 calls.. CALL rel16, CALL rel32,
 			// 9a calls.. CALL ptr16:16, CALL ptr16:32 are not handled (no support for 16 bit architecture)
-			ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
+			ZydisCalcAbsoluteAddress(&instruction, operand, reinterpret_cast<ZyanU64>(instructionAddress), &originalJumpTarget);
 
-#ifdef __x86_64__
-			const int relocatedCallInstructionsLength = 12;
-			// we can use rax here as it has not to be preserved in function calls
+			// Calculate the return address (instruction after the original call)
+			int8_t* returnAddress = instructionAddress + instruction.length;
+
+#if defined(__x86_64__) || defined(_M_X64)
+			// Use push + jmp instead of call to make unhooking safe
+			// The return address points to the original code, not the trampoline
+			const int relocatedCallInstructionsLength = 23;
 			uint8_t relocatedCallInstructions[relocatedCallInstructionsLength] = {
-				0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,			//movabs rax, 0x1122334455667788. 
-				0xFF, 0xD0															//call   rax
+				0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	// movabs rax, <return_address>
+				0x50,															// push rax
+				0x48, 0xB8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,	// movabs rax, <target>
+				0xFF, 0xE0														// jmp rax
 			};
-			*(uint64_t*)&relocatedCallInstructions[2] = originalJumpTarget;
+			*(uint64_t*)&relocatedCallInstructions[2] = (uint64_t)returnAddress;
+			*(uint64_t*)&relocatedCallInstructions[13] = originalJumpTarget;
 			relocatedbytes.insert(relocatedbytes.end(), relocatedCallInstructions, relocatedCallInstructions + relocatedCallInstructionsLength);
 #else
 			const int relocatedCallInstructionsLength = 7;
@@ -146,9 +163,8 @@ namespace hookftw
 			relocatedbytes.insert(relocatedbytes.end(), relocatedCallInstructions, relocatedCallInstructions + relocatedCallInstructionsLength);
 #endif
 		}
-		// the program can return to the return address pushed on the stack (at time of the call) at any time.
-		// if the hook is removed (and therefore the trampoline freed) the return address might not contain valid code --> crash
-		printf("[Warning] - Decoder - Relocated a call instruction. Unhooking is not safe!\n");
+		// Unhooking is now safe! The return address points to the original code, not the trampoline.
+		// When the called function returns, it returns to the instruction after the original call.
 		return true;
 	}
 
@@ -162,7 +178,7 @@ namespace hookftw
 	bool RelocateBranchInstruction(ZydisDecodedInstruction& instruction, const ZydisDecodedOperand* operand, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& relocatedbytes)
 	{
 		ZyanU64 originalJumpTarget;
-		ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
+		ZydisCalcAbsoluteAddress(&instruction, operand, reinterpret_cast<ZyanU64>(instructionAddress), &originalJumpTarget);
 
 		// handle conditional jumps (jcc) by using 2 jmp
 		if (instruction.mnemonic != ZYDIS_MNEMONIC_JMP)
@@ -176,7 +192,7 @@ namespace hookftw
 			}
 			relocatedbytes[relocatedbytes.size() - elementSizeInBytes] = 0x2;
 
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
 			// jmp after jcc instruction because jcc is not taken
 			relocatedbytes.push_back(0xEB);	//jmp    0x10
 			relocatedbytes.push_back(0xE);	//
@@ -212,7 +228,7 @@ namespace hookftw
 			// relocation of jmp instructions
 			if (instruction.attributes & ZYDIS_ATTRIB_IS_RELATIVE)
 			{
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
 				if (instruction.opcode == 0xff)
 				{
 					const int lengthOfIndirectJmpInstruction = 6;
@@ -274,7 +290,6 @@ namespace hookftw
 			}
 		}
 
-		printf("[Info] - Decoder - Relocated a branch instruction\n");
 		return true;
 	}
 
@@ -306,7 +321,7 @@ namespace hookftw
 		// check if new displacement is within int32_t range
 		if (relocatedRelativeAddress > INT32_MAX || relocatedRelativeAddress < INT32_MIN)
 		{
-			printf("[Error] - Decoder - Failed to relocate a rip-relative memory instruction. RelocatedRelativeAddress: %llx\n", relocatedRelativeAddress);
+			printf("[Error] - Decoder - Failed to relocate a rip-relative memory instruction. RelocatedRelativeAddress: %lx\n", relocatedRelativeAddress);
 			free(tmpBuffer);
 			return false;
 		}
@@ -318,7 +333,6 @@ namespace hookftw
 		relocatedbytes.insert(relocatedbytes.end(), tmpBuffer, tmpBuffer + instruction.length);
 
 		free(tmpBuffer);
-		printf("[Info] - Decoder - Relocated a rip-relative memory instruction\n");
 		return true;
 	}
 
@@ -331,7 +345,7 @@ namespace hookftw
 		if (!_zydisDecoder)
 		{
 			_zydisDecoder = &decoder;
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
 			ZyanStatus status = ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 #else
 			ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
@@ -378,12 +392,12 @@ namespace hookftw
 		{
 			ZydisDecodedInstruction instruction;
 			int8_t* currentAddress = sourceAddress + amountOfBytesrelocated;
-			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
-			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
+			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
+			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
 			{
 				printf("[Error] - Decoder - Could not decode instruction\n");
-				return std::vector<int8_t>();
+				return {};
 			}
 
 
@@ -403,7 +417,7 @@ namespace hookftw
 				if (!RelocateBranchInstruction(instruction, operands, currentAddress, targetAddress + relocatedbytes.size(), relocatedbytes))
 				{
 					printf("[Error] - Decoder - Failed to relocate branch instruction\n");
-					return std::vector<int8_t>();
+					return {};
 				}
 			}
 			else if (IsRipRelativeMemoryInstruction(instruction))
@@ -412,15 +426,15 @@ namespace hookftw
 				// rip-relative memory instructions may not be able to reach their target address (TODO check this on an instruction based level... there are some cases when this works)
 				if (restrictedRelocation)
 				{
-					printf("[Error] - Decoder - Can't relocate a rip-relative memory access with restricted relocation enabled (trampoline is not in rel32 range). This is currently not supported.\n");
-					return std::vector<int8_t>();
+					//printf("[Error] - Decoder - Can't relocate a rip-relative memory access with restricted relocation enabled (trampoline is not in rel32 range). This is currently not supported.\n");
+					return {};
 				}
 				// handle relocation of rip-relative memory addresses (x64 only)
 				if (!RelocateRipRelativeMemoryInstruction(instruction, currentAddress, targetAddress + relocatedbytes.size(), relocatedbytes))
 				{
 					this->PrintInstructions(currentAddress, 1);
-					printf("[Error] - Decoder - Failed to relocate rip-relative instruction\n");
-					return std::vector<int8_t>();
+					//printf("[Error] - Decoder - Failed to relocate rip-relative instruction\n");
+					return {};
 				}
 			}
 			else if (instruction.mnemonic == ZYDIS_MNEMONIC_XBEGIN)
@@ -429,8 +443,8 @@ namespace hookftw
 				// and even physically removed support for it on never processors
 				// additionally windows (and linux) allow for disabling tsx support
 				// we expect to never encounter this instruction
-				printf("[Error] - Decoder - Encountered XBEGIN instruction which is a relative but unhandled instruction!\n");
-				return std::vector<int8_t>();
+				//printf("[Error] - Decoder - Encountered XBEGIN instruction which is a relative but unhandled instruction!\n");
+				return {};
 			}
 			else
 			{
@@ -450,87 +464,26 @@ namespace hookftw
 	 *
 	 *  @return length of complete instructions with a minimun of the passed length
 	 */
-	int Decoder::GetLengthOfInstructions(int8_t* sourceAddress, int length)
+	int Decoder::GetLengthOfInstructions(int8_t* sourceAddress, int length) const
 	{
 		int byteCount = 0;
 
-		// we will atleast get "length" bytes. To avoid splitting an instruction we might get more.
-		while (byteCount < length)
+	// we will atleast get "length" bytes. To avoid splitting an instruction we might get more.
+	while (byteCount < length)
+	{
+		ZydisDecodedInstruction instruction;
+		int8_t* currentAddress = sourceAddress + byteCount;
+		ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
+		ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands);
+		if (decodeResult != ZYAN_STATUS_SUCCESS)
 		{
-			ZydisDecodedInstruction instruction;
-			int8_t* currentAddress = sourceAddress + byteCount;
-			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
-			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
-			if (decodeResult != ZYAN_STATUS_SUCCESS)
-			{
-				printf("[Error] - Decoder - Could not decode instruction\n");
-				return 0;
-			}
+			printf("[Error] - Decoder - Could not decode instruction\n");
+			return 0;
+		}
 
 			byteCount += instruction.length;
 		}
 		return byteCount;
-	}
-
-	/**
-	 *  \brief Scans memory for specific instruction types. This is mainly used for testing.
-	 *
-	 *  @param startAddress start address of the scan
-	 *  @param type of instrction to scan for
-	 *  @length minimum amounf of bytes to search (the scan does not stop in the middle of an instruction)
-	 *
-	 *  @return length of complete instructions with a minimun of the passed length
-	 */
-	std::vector<int8_t*> Decoder::FindRelativeInstructionsOfType(int8_t* startAddress, RelativeInstruction type, int length)
-	{
-		std::vector<int8_t*> foundInstructions;
-		int offset = 0;
-		ZyanStatus decodeResult = ZYAN_STATUS_FAILED;
-		// we will atleast relocate "length" bytes. To avoid splitting an instruction we might relocate more.
-		do
-		{
-			ZydisDecodedInstruction instruction;
-			int8_t* currentAddress = startAddress + offset;
-
-			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
-			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
-			if (decodeResult != ZYAN_STATUS_SUCCESS)
-			{
-				printf("[Error] - Decoder - Could not decode instruction\n");
-				offset += instruction.length;
-				continue;
-			}
-
-			bool typeFound = false;
-			switch (type)
-			{
-			case RelativeInstruction::CALL:
-				if (IsCallInstruction(instruction))
-				{
-					typeFound = true;
-				}
-				break;
-			case RelativeInstruction::BRANCH:
-				if (IsBranchInstruction(instruction))
-				{
-					typeFound = true;
-				}
-				break;
-			case RelativeInstruction::RIP_RELATIV:
-				if (IsRipRelativeMemoryInstruction(instruction) && instruction.mnemonic != ZYDIS_MNEMONIC_CALL) //do not show calls here even though there are rip-relative calls
-				{
-					typeFound = true;
-				}
-				break;
-			}
-			if (typeFound)
-			{
-				foundInstructions.push_back(currentAddress);
-			}
-			offset += instruction.length;
-		} while (decodeResult == ZYAN_STATUS_SUCCESS || offset < length);
-		printf("[Warning] - Decoder - Couldn't find relative instruction of desired type in %d bytes\n", offset);
-		return foundInstructions;
 	}
 
 	/**
@@ -550,24 +503,24 @@ namespace hookftw
 		uint64_t tmpLowestAddress = 0xffffffffffffffff;
 		uint64_t tmpHighestAddress = 0;
 
-		// we will atleast relocate "length" bytes. To avoid splitting an instruction we might relocate more.
-		while (byteCount < length)
+	// we will atleast relocate "length" bytes. To avoid splitting an instruction we might relocate more.
+	while (byteCount < length)
+	{
+		ZydisDecodedInstruction instruction;
+		int8_t* currentAddress = sourceAddress + byteCount;
+		ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
+		ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands);
+		if (decodeResult != ZYAN_STATUS_SUCCESS)
 		{
-			ZydisDecodedInstruction instruction;
-			int8_t* currentAddress = sourceAddress + byteCount;
-			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
-			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
-			if (decodeResult != ZYAN_STATUS_SUCCESS)
-			{
-				printf("[Error] - Decoder - Could not decode instruction\n");
-				return false;
-			}
+			printf("[Error] - Decoder - Could not decode instruction\n");
+			return false;
+		}
 
-			// skip non rip-relative instructions
-			if (!IsRipRelativeMemoryInstruction(instruction))
-			{
-				byteCount += instruction.length;
-				continue;
+		// skip non rip-relative instructions
+		if (!IsRipRelativeMemoryInstruction(instruction))
+		{
+			byteCount += instruction.length;
+			continue;
 			}
 
 			// calculate the absolute address of the rip-relative address. Note: ZydisCalcAbsoluteAddress does not calculate addresses for rip-relative instructions
@@ -603,7 +556,7 @@ namespace hookftw
 		// initialize decoder context
 		ZydisDecoder decoder;
 
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
 		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 #else
 		ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_COMPAT_32, ZYDIS_STACK_WIDTH_32);
@@ -614,22 +567,22 @@ namespace hookftw
 		ZyanUSize offset = 0;
 		ZydisDecodedInstruction instruction;
 
-		while (offset < byteCount)
+	while (offset < byteCount)
+	{
+		ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
+		ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, data + offset, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands);
+		if (decodeResult != ZYAN_STATUS_SUCCESS)
 		{
-			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
-			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, data + offset, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands, ZYDIS_MAX_OPERAND_COUNT_VISIBLE, ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY);
-			if (decodeResult != ZYAN_STATUS_SUCCESS)
-			{
-				printf("[Error] - Decoder - Could not decode instruction\n");
-				return;
-			}
+			printf("[Error] - Decoder - Could not decode instruction\n");
+			return;
+		}
 
-			ZydisFormatter formatter;
-			ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+		ZydisFormatter formatter;
+		ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 
 			char buffer[256];
-			printf("[%llx]", runtime_address);
-			ZydisFormatterFormatInstruction(&formatter, &instruction, operands, operands->element_count, buffer, sizeof(buffer), runtime_address);
+			printf("[%lx]", runtime_address);
+			ZydisFormatterFormatInstruction(&formatter, &instruction, operands, operands->element_count, buffer, sizeof(buffer), runtime_address, nullptr);
 			printf("%s\n", buffer);
 
 			offset += instruction.length;
