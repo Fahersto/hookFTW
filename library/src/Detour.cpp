@@ -41,7 +41,7 @@ namespace hookftw
 		if (!trampoline_)
 		{
 			printf("[Error] - Detour - Failed to allocate trampoline\n");
-			return nullptr;
+			assert(false);
 		}
 
 		Decoder decoder;

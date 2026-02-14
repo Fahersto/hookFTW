@@ -843,12 +843,13 @@ namespace hookftw
 	void MidfunctionHook::Hook(int8_t* sourceAddress, void proxy(context* ctx))
 	{
 		this->sourceAddress_ = sourceAddress;
-		
+
 		Trampoline trampoline;
 		trampoline_ = trampoline.HandleTrampolineAllocation(sourceAddress, &restrictedRelocation_);
 		if (!trampoline_)
 		{
-			return;
+			printf("[Error] - MidfunctionHook - Failed to allocate trampoline\n");
+			assert(false);
 		}
 
 		Decoder decoder;
