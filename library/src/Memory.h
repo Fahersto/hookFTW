@@ -46,10 +46,13 @@ class Memory
 {
     public:
         static int8_t* FindFunctionInModule(const std::string &moduleName, const std::string &functionName);
+        static int8_t* FindPattern(const int8_t* startAddress, size_t searchSize, const std::string& pattern);
+        static int8_t* FindPatternInModule(const std::string& moduleName, const std::string& pattern);
         static int8_t* AllocPage(int8_t* address, int32_t size, MemoryPageProtection protection, MemoryPageFlag flag);
         static bool FreePage(int8_t* address, int32_t size);
         static bool ModifyPageProtection(const int8_t* address, int32_t size, MemoryPageProtection protection);
         static MemoryPageProtection QueryPageProtection(const int8_t* address);
         static int32_t GetPageSize();
+        static int8_t* GetProcessBaseAddress();
 };
 }
