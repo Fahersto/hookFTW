@@ -93,7 +93,7 @@ namespace hookftw
 	 *	@param instructionAddress original address of the call instruction
 	 *	@param relocatedbytes relocated bytes
 	 */
-	bool RelocateCallInstruction(ZydisDecodedInstruction& instruction, const ZydisDecodedOperand* operand, int8_t* instructionAddress, std::vector<int8_t>& relocatedbytes)
+	bool RelocateCallInstruction(ZydisDecodedInstruction& instruction, const ZydisDecodedOperand* operand, const int8_t* instructionAddress, std::vector<int8_t>& relocatedbytes)
 	{
 		ZyanU64 originalJumpTarget;
 		if (instruction.attributes & ZYDIS_ATTRIB_HAS_MODRM)
@@ -105,7 +105,7 @@ namespace hookftw
 				ZydisCalcAbsoluteAddress(&instruction, operand, (ZyanU64)instructionAddress, &originalJumpTarget);
 
 				// Calculate the return address (instruction after the original call)
-				int8_t* returnAddress = instructionAddress + instruction.length;
+				const int8_t* returnAddress = instructionAddress + instruction.length;
 
 				// Use push + jmp instead of call to make unhooking safe
 				// The return address points to the original code, not the trampoline
@@ -137,7 +137,7 @@ namespace hookftw
 			ZydisCalcAbsoluteAddress(&instruction, operand, reinterpret_cast<ZyanU64>(instructionAddress), &originalJumpTarget);
 
 			// Calculate the return address (instruction after the original call)
-			int8_t* returnAddress = instructionAddress + instruction.length;
+			const int8_t* returnAddress = instructionAddress + instruction.length;
 
 #if defined(__x86_64__) || defined(_M_X64)
 			// Use push + jmp instead of call to make unhooking safe
@@ -175,7 +175,7 @@ namespace hookftw
 	 *	@param instructionAddress original address of the branch instruction
 	 *	@param relocatedbytes relocated bytes
 	 */
-	bool RelocateBranchInstruction(ZydisDecodedInstruction& instruction, const ZydisDecodedOperand* operand, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& relocatedbytes)
+	bool RelocateBranchInstruction(ZydisDecodedInstruction& instruction, const ZydisDecodedOperand* operand, const int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& relocatedbytes)
 	{
 		ZyanU64 originalJumpTarget;
 		ZydisCalcAbsoluteAddress(&instruction, operand, reinterpret_cast<ZyanU64>(instructionAddress), &originalJumpTarget);
@@ -251,7 +251,7 @@ namespace hookftw
 
 						relocatedbytes.insert(relocatedbytes.end(), (int8_t*)&originalJumpTarget, (int8_t*)&originalJumpTarget + 8); // destination to jump to: 8 Bytes
 
-						printf("[Warning] - Decoder - Relocated an indirect branch instruction by using a direct JMP because the memory address could not be reached. This may result in undifined behavior\n");
+						printf("[Warning] - Decoder - Relocated an indirect branch instruction by using a direct JMP because the memory address could not be reached. This may result in undefined behavior\n");
 					}
 					else
 					{
@@ -306,7 +306,7 @@ namespace hookftw
 	 *
 	 *  @return true if successful, false otherwise.
 	 */
-	bool RelocateRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction, int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& relocatedbytes)
+	bool RelocateRipRelativeMemoryInstruction(ZydisDecodedInstruction& instruction, const int8_t* instructionAddress, int8_t* relocatedInstructionAddress, std::vector<int8_t>& relocatedbytes)
 	{
 		int8_t* tmpBuffer = (int8_t*)malloc(instruction.length);
 
@@ -367,7 +367,7 @@ namespace hookftw
 	 *
 	 * @return returns bytes of the relocated instructions
 	 */
-	std::vector<int8_t> Decoder::Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress, bool restrictedRelocation)
+	std::vector<int8_t> Decoder::Relocate(const int8_t* sourceAddress, int length, int8_t* targetAddress, bool restrictedRelocation)
 	{
 		/* Instructions that need to be relocated
 		  32bit:
@@ -391,7 +391,7 @@ namespace hookftw
 		while (amountOfBytesrelocated < length)
 		{
 			ZydisDecodedInstruction instruction;
-			int8_t* currentAddress = sourceAddress + amountOfBytesrelocated;
+			const int8_t* currentAddress = sourceAddress + amountOfBytesrelocated;
 			ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
 			ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands);
 			if (decodeResult != ZYAN_STATUS_SUCCESS)
@@ -464,7 +464,7 @@ namespace hookftw
 	 *
 	 *  @return length of complete instructions with a minimun of the passed length
 	 */
-	int Decoder::GetLengthOfInstructions(int8_t* sourceAddress, int length) const
+	int Decoder::GetLengthOfInstructions(const int8_t* sourceAddress, int length) const
 	{
 		int byteCount = 0;
 
@@ -472,7 +472,7 @@ namespace hookftw
 	while (byteCount < length)
 	{
 		ZydisDecodedInstruction instruction;
-		int8_t* currentAddress = sourceAddress + byteCount;
+		const int8_t* currentAddress = sourceAddress + byteCount;
 		ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
 		ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands);
 		if (decodeResult != ZYAN_STATUS_SUCCESS)
@@ -497,7 +497,7 @@ namespace hookftw
 	 * @param highestAddress [out] highest relative access found
 	 * @return returns true of the bounds could be calculated. False otherwhise.
 	 */
-	bool Decoder::CalculateRipRelativeMemoryAccessBounds(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress)
+	bool Decoder::CalculateRipRelativeMemoryAccessBounds(const int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress)
 	{
 		int byteCount = 0;
 		uint64_t tmpLowestAddress = 0xffffffffffffffff;
@@ -507,7 +507,7 @@ namespace hookftw
 	while (byteCount < length)
 	{
 		ZydisDecodedInstruction instruction;
-		int8_t* currentAddress = sourceAddress + byteCount;
+		const int8_t* currentAddress = sourceAddress + byteCount;
 		ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
 		ZyanStatus decodeResult = ZydisDecoderDecodeFull((ZydisDecoder*)_zydisDecoder, currentAddress, MAXIMUM_INSTRUCTION_LENGTH, &instruction, operands);
 		if (decodeResult != ZYAN_STATUS_SUCCESS)
@@ -549,7 +549,7 @@ namespace hookftw
 	 * @param address Address to start disassembling
 	 * @param byteCount amount of bytes to disassemble
 	 */
-	void Decoder::PrintInstructions(int8_t* address, int32_t byteCount)
+	void Decoder::PrintInstructions(const int8_t* address, int32_t byteCount)
 	{
 		ZyanU8* data = (ZyanU8*)address;
 

@@ -11,8 +11,8 @@ namespace hookftw
 	{
 	public:
 		Trampoline();
-		int8_t* HandleTrampolineAllocation(int8_t* sourceAddress, bool* restrictedRelocation);
-		int8_t* AllocateTrampoline(int8_t* sourceAddress, bool* restrictedRelocation);
-		int8_t* AllocateTrampolineWithinBounds(int8_t* sourceAddress, int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress, bool* restrictedRelocation);
+		int8_t* HandleTrampolineAllocation(const int8_t* sourceAddress, bool* restrictedRelocation);
+		int8_t* AllocateTrampoline(const int8_t* sourceAddress, bool* restrictedRelocation);
+		int8_t* AllocateTrampolineWithinBounds(const int8_t* sourceAddress, int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress, bool* restrictedRelocation);
 	};
 }

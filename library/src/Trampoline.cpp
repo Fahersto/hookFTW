@@ -22,7 +22,7 @@ namespace hookftw
 	 *  @param restrictedRelocation [out] true if trampoline could not be allocated within +-2GB range. False otehrwise.
 	 *	@return pointer to the newly allocated memory page (trampoline)
 	 */
-	int8_t* Trampoline::HandleTrampolineAllocation(int8_t* sourceAddress, bool* restrictedRelocation)
+	int8_t* Trampoline::HandleTrampolineAllocation(const int8_t* sourceAddress, bool* restrictedRelocation)
 	{
 		int8_t* trampoline = nullptr;
 		Decoder decoder;
@@ -33,17 +33,17 @@ namespace hookftw
 
 #if __x86_64__ || _WIN64
 		int64_t lowestRelativeAddress = 0;
-		int64_t hightestRelativeAddress = 0;
+		int64_t highestRipRelativeMemoryAddress = 0;
 
 		// attempt using 5 bytes 
-		if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fiveBytesWithoutCuttingInstructions, &lowestRelativeAddress, &hightestRelativeAddress))
+		if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fiveBytesWithoutCuttingInstructions, &lowestRelativeAddress, &highestRipRelativeMemoryAddress))
 		{
 			printf("[Error] - Trampoline - Could not calculate bounds of relative instructions replaced by hook!\n");
 			return nullptr;;
 		}
 
 		// check if there was rip-relative memory access
-		if (lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0)
+		if (lowestRelativeAddress == 0xffffffffffffffff && highestRipRelativeMemoryAddress == 0)
 		{
 			// there was no rip-relative memory access
 			// attempt to allocate trampoline within +-2GB range of source address
@@ -60,15 +60,15 @@ namespace hookftw
 			{
 				// there were no rip-relative memory accesses within fiveBytesWithoutCuttingInstructions of the hook address.
 				// since we failed to allocate withing +-2GB range we now need to check fourteenBytesWithoutCuttingInstructions for rip-relative instructions
-				if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fourteenBytesWithoutCuttingInstructions, &lowestRelativeAddress, &hightestRelativeAddress))
+				if (!decoder.CalculateRipRelativeMemoryAccessBounds(sourceAddress, fourteenBytesWithoutCuttingInstructions, &lowestRelativeAddress, &highestRipRelativeMemoryAddress))
 				{
 					printf("[Error] - Trampoline - Could not calculate bounds of relative instructions replaced by hook!\n");
 					return nullptr;
 				}
 
 				// check if there is rip-relative memory access. Since we need to use a fourteenBytesWithoutCuttingInstructions byte jump we don't support relocating rip-relative instructions
-				// if we have rip-relativ memory access here, hooking failed
-				if (!(lowestRelativeAddress == 0xffffffffffffffff && hightestRelativeAddress == 0))
+				// if we have rip-relative memory access here, hooking failed
+				if (!(lowestRelativeAddress == 0xffffffffffffffff && highestRipRelativeMemoryAddress == 0))
 				{
 					printf("[Error] - Trampoline - The trampoline could not be allocated withing +-2GB range. The instructions at the hook address do contain rip-relative memory access. Relocating those is not supported when the trampoline is not in +-2GB range!\n");
 					return nullptr;
@@ -78,11 +78,11 @@ namespace hookftw
 		else
 		{
 			// there was rip-relative memory access (x64 only)
-			trampoline = this->AllocateTrampolineWithinBounds(sourceAddress, lowestRelativeAddress, hightestRelativeAddress, restrictedRelocation);
+			trampoline = this->AllocateTrampolineWithinBounds(sourceAddress, lowestRelativeAddress, highestRipRelativeMemoryAddress, restrictedRelocation);
 
 			if (!trampoline)
 			{
-				printf("[Error] - Trampoline - Failed to allocate trampoline within bounds [%lx, %lx]\n", lowestRelativeAddress, hightestRelativeAddress);
+				printf("[Error] - Trampoline - Failed to allocate trampoline within bounds [%lx, %lx]\n", lowestRelativeAddress, highestRipRelativeMemoryAddress);
 				return nullptr;
 			}
 
@@ -112,7 +112,7 @@ namespace hookftw
 	 *  @param restrictedRelocation [out] true if trampoline could not be allocated within +-2GB range. False otherwise.
 	 *	@return pointer to the newly allocated memory page (trampoline)
 	 */
-	int8_t* Trampoline::AllocateTrampoline(int8_t* sourceAddress, bool* restrictedRelocation)
+	int8_t* Trampoline::AllocateTrampoline(const int8_t* sourceAddress, bool* restrictedRelocation)
 	{
 		// we attempt to use a rel32 JMP as this allows to relocate RIP-relative memory accesses conveniently
 		const int32_t signedIntMaxValue = 0x7fffffff;
@@ -175,7 +175,7 @@ namespace hookftw
 	/**
 	 * \brief Attempts to allocate a trampoline_ within +-2gb range with respect to rip-relative memory accesses.
 	 */
-	int8_t* Trampoline::AllocateTrampolineWithinBounds(int8_t* sourceAddress, int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress, bool* restrictedRelocation)
+	int8_t* Trampoline::AllocateTrampolineWithinBounds(const int8_t* sourceAddress, int64_t lowestRipRelativeMemoryAccess, int64_t highestRipRelativeMemoryAddress, bool* restrictedRelocation)
 	{
 		const int32_t signedIntMaxValue = 0x7fffffff;
 
@@ -250,7 +250,6 @@ namespace hookftw
 				return nullptr;
 			}
 		}
-		printf("[Info] - Trampoline - Allocated trampoline at %p (using %ld attempts)\n", trampoline, allocationAttempts);
 		*restrictedRelocation = false;
 		return trampoline;
 	}

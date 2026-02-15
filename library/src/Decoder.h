@@ -29,9 +29,9 @@ namespace hookftw
 	public:
 		Decoder();
 	
-		void PrintInstructions(int8_t* address, int32_t byteCount);
-		int GetLengthOfInstructions(int8_t* sourceAddress, int length) const;
-		bool CalculateRipRelativeMemoryAccessBounds(int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress);
-		std::vector<int8_t> Relocate(int8_t* sourceAddress, int length, int8_t* targetAddress, bool restrictedRelocation = false);
+		void PrintInstructions(const int8_t* address, int32_t byteCount);
+		int GetLengthOfInstructions(const int8_t* sourceAddress, int length) const;
+		bool CalculateRipRelativeMemoryAccessBounds(const int8_t* sourceAddress, int length, int64_t* lowestAddress, int64_t* highestAddress);
+		std::vector<int8_t> Relocate(const int8_t* sourceAddress, int length, int8_t* targetAddress, bool restrictedRelocation = false);
 	};
 }
